@@ -1,0 +1,2018 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>SPG · Transplantio</title>
+
+  <!-- PWA: instalável como aplicativo (manifest.json serve de fallback estático;
+       applyBrandAssets() abaixo regrava tudo em runtime, então funciona mesmo se o
+       arquivo manifest.json não estiver disponível no host) -->
+  <link rel="manifest" id="siteManifest" href="manifest.json">
+  <meta name="theme-color" content="#0d5c3a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SPG Transplantio">
+  <link rel="icon" id="siteFavicon" href="https://i.imgur.com/vOyYWgp.png">
+  <link rel="apple-touch-icon" id="siteAppleTouchIcon" href="https://i.imgur.com/vOyYWgp.png">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script>
+    // registra o plugin de rótulos de dados, mas desligado por padrão — só os gráficos que
+    // explicitamente pedem plugins.datalabels no próprio options é que mostram algo
+    if (window.Chart && window.ChartDataLabels) {
+      Chart.register(ChartDataLabels);
+      Chart.defaults.set('plugins.datalabels', { display: false });
+    }
+  </script>
+  <style>
+    :root{--verde:#0d5c3a;--verde-med:#1a7a4e;--vermelho:#dc2626;}
+    *{box-sizing:border-box;}
+    body{font-family:"Segoe UI",sans-serif;background:#f1f5f4;color:#1e293b;margin:0;}
+    .navbar{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+    .navbar-brand{display:flex;align-items:center;gap:10px;}
+    .navbar-brand img{width:32px;height:32px;border-radius:8px;}
+    .navbar-brand h1{font-size:13px;font-weight:900;margin:0;}
+    .navbar-brand p{font-size:10px;color:#94a3b8;margin:0;}
+    .navbar-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:all .15s;line-height:1;}
+    .btn:active{transform:scale(.97);}
+    .btn-primary{background:var(--verde);color:#fff;box-shadow:0 2px 8px rgba(13,92,58,.3);}
+    .btn-primary:hover{background:var(--verde-med);}
+    .btn-secondary{background:#f1f5f9;color:#475569;}
+    .btn-secondary:hover{background:#e2e8f0;}
+    .btn-danger{background:#dc2626;color:#fff;}
+    .btn-danger:hover{background:#b91c1c;}
+    .btn-sm{padding:5px 10px;font-size:11px;border-radius:8px;}
+    .btn-icon{padding:6px;border-radius:8px;background:transparent;border:none;cursor:pointer;color:#64748b;}
+    .card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;}
+    .card-header{padding:12px 20px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;}
+    .card-header h3{margin:0;font-size:13px;font-weight:700;color:#334155;}
+    .card-body{padding:20px;}
+    .form-group{margin-bottom:14px;}
+    .form-label{display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:5px;letter-spacing:.05em;}
+    .form-label.required::after{content:" *";color:#dc2626;}
+    .form-control{width:100%;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:13px;background:#fff;outline:none;transition:border-color .15s;}
+    .form-control:focus{border-color:var(--verde);box-shadow:0 0 0 3px rgba(13,92,58,.12);}
+    .form-row{display:grid;gap:12px;}
+    .cols-2{grid-template-columns:1fr 1fr;}
+    .cols-3{grid-template-columns:1fr 1fr 1fr;}
+    .cols-4{grid-template-columns:1fr 1fr 1fr 1fr;}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;}
+    .grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
+    .tabbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 16px;display:flex;overflow-x:auto;}
+    .tab-btn{display:inline-flex;align-items:center;gap:6px;padding:12px 16px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;color:#94a3b8;transition:all .15s;flex-shrink:0;}
+    .tab-btn.active{color:var(--verde);border-bottom-color:var(--verde);}
+    .tab-icon{font-size:14px;line-height:1;}
+    .tab-label{line-height:1;}
+    .stat-card{background:#fff;border-radius:14px;padding:12px 14px;border:1px solid #e2e8f0;text-align:center;}
+    .stat-icon-circle{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;margin:0 auto 6px;}
+    .stat-value{font-size:22px;font-weight:900;line-height:1.1;}
+    .stat-label{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-top:2px;}
+    .stat-verde{color:var(--verde);} .stat-azul{color:#2563eb;} .stat-ambar{color:#d97706;} .stat-vermelho{color:#dc2626;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;}
+    .badge-verde{background:#dcfce7;color:#15803d;} .badge-amarelo{background:#fef9c3;color:#92400e;}
+    .badge-vermelho{background:#fee2e2;color:#b91c1c;} .badge-azul{background:#dbeafe;color:#1d4ed8;} .badge-cinza{background:#f1f5f9;color:#475569;}
+    .parceiro-card{border-radius:14px;padding:14px 16px;border:2px solid transparent;cursor:pointer;transition:all .15s;}
+    .parceiro-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.09);}
+    .parceiro-verde{background:#f0fdf4;border-color:#bbf7d0;} .parceiro-amarelo{background:#fffbeb;border-color:#fde68a;}
+    .parceiro-vermelho{background:#fff1f2;border-color:#fecaca;} .parceiro-cinza{background:#f8fafc;border-color:#e2e8f0;}
+    .parceiro-nome{font-size:14px;font-weight:800;color:#1e293b;} .parceiro-info{font-size:11px;color:#64748b;margin-top:3px;}
+    .parceiro-pct{font-size:20px;font-weight:900;}
+    .pct-verde{color:#15803d;} .pct-amarelo{color:#b45309;} .pct-vermelho{color:#b91c1c;} .pct-cinza{color:#64748b;}
+    .table-wrap{overflow-x:auto;}
+    .table-scroll{max-height:640px;overflow-y:auto;}
+    .table-scroll thead th{position:sticky;top:0;z-index:1;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th{padding:8px 12px;text-align:left;background:#f8fafc;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:1px solid #e2e8f0;}
+    td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:top;}
+    tr:hover td{background:#f8fafc;}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;justify-content:center;align-items:center;backdrop-filter:blur(3px);}
+    .modal-overlay.show{display:flex;}
+    .modal{background:#fff;border-radius:20px;padding:24px;width:90%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:slideUp .2s ease;}
+    @keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+    .modal-header h3{margin:0;font-size:15px;font-weight:800;}
+    .modal-footer{display:flex;gap:8px;margin-top:18px;}
+    .modal-footer .btn{flex:1;justify-content:center;}
+    .toast-container{position:fixed;bottom:20px;right:20px;left:20px;z-index:99;display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+    .toast{padding:12px 16px;border-radius:12px;font-size:12px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.15);animation:slideUp .2s;display:flex;align-items:center;gap:8px;min-width:220px;max-width:320px;width:100%;}
+    .toast-success{background:#16a34a;color:#fff;} .toast-error{background:#dc2626;color:#fff;} .toast-info{background:#2563eb;color:#fff;}
+    .progress{height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+    .progress-bar{height:100%;border-radius:99px;transition:width .4s;}
+    .spinner{width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+    .hidden{display:none!important;} .text-center{text-align:center;} .text-muted{color:#94a3b8;font-size:11px;}
+    .mb-3{margin-bottom:12px;} .mt-2{margin-top:8px;} .font-mono{font-family:monospace;}
+    @media(max-width:640px){.cols-3,.cols-4{grid-template-columns:1fr 1fr;} .hide-mobile{display:none;}}
+    @media(max-width:480px){.cols-2,.cols-3,.cols-4{grid-template-columns:1fr;}}
+    @media(max-width:520px){
+      .navbar{padding:8px 10px;}
+      .navbar-brand img{width:26px;height:26px;}
+      .navbar-brand h1{font-size:12px;}
+      .card-body{padding:14px;}
+      .modal{padding:18px;width:94%;}
+      .stat-value{font-size:18px;}
+      table{font-size:11px;}
+      th,td{padding:7px 8px;}
+    }
+    /* barra de abas vira navegação inferior fixa no mobile — mais fácil de alcançar com o polegar */
+    @media(max-width:700px){
+      .tabbar{
+        position:fixed;left:0;right:0;bottom:0;z-index:45;
+        overflow-x:visible;justify-content:space-around;
+        border-bottom:none;border-top:1px solid #e2e8f0;
+        box-shadow:0 -2px 10px rgba(0,0,0,.08);
+        padding:6px 2px calc(6px + env(safe-area-inset-bottom));
+      }
+      .tab-btn{
+        position:relative;flex:1;min-width:0;flex-direction:column;justify-content:center;
+        gap:3px;padding:8px 2px 6px;font-weight:600;
+        border-bottom:none;border-radius:0;color:#94a3b8;
+      }
+      .tab-icon{font-size:17px;line-height:1;padding:3px 14px;border-radius:999px;transition:background-color .15s;}
+      .tab-label{font-size:9.5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:font-weight .15s;}
+      .tab-btn.active{color:var(--verde);}
+      .tab-btn.active .tab-icon{background:#dcfce7;}
+      .tab-btn.active .tab-label{font-weight:800;}
+      .tab-btn.active::before{
+        content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+        width:22px;height:3px;border-radius:0 0 4px 4px;background:var(--verde);
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner" style="width:36px;height:36px;border-width:4px;"></div>
+  <span style="font-size:13px;color:#475569;font-weight:600;">Aguarde...</span>
+</div>
+<div id="appRoot"></div>
+<script>
+// ── ESTADO GLOBAL ───────────────────────────────────────────
+const App = { token: null, papel: null, nome: null };
+
+// PWA: registra o service worker (permite instalar como aplicativo / abrir offline)
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+// PWA: gera o manifest em runtime (data URI) e reaplica favicon/apple-touch-icon —
+// assim a instalação como app funciona mesmo se manifest.json não estiver acessível no host.
+const BRAND_LOGO_URL = 'https://i.imgur.com/vOyYWgp.png';
+
+function applyBrandAssets() {
+  const favicon      = document.getElementById('siteFavicon');
+  const appleTouch   = document.getElementById('siteAppleTouchIcon');
+  const manifestLink = document.getElementById('siteManifest');
+
+  if (favicon)    favicon.href    = BRAND_LOGO_URL;
+  if (appleTouch) appleTouch.href = BRAND_LOGO_URL;
+  if (manifestLink) {
+    const manifest = {
+      name: 'SPG · Transplantio',
+      short_name: 'SPG Transplantio',
+      description: 'Controle de Parceiros — Transplantio e Colheitas',
+      start_url: '.',
+      scope: '.',
+      display: 'standalone',
+      orientation: 'portrait-primary',
+      background_color: '#f1f5f4',
+      theme_color: '#0d5c3a',
+      lang: 'pt-BR',
+      icons: [
+        { src: BRAND_LOGO_URL, sizes: '192x192', type: 'image/png' },
+        { src: BRAND_LOGO_URL, sizes: '512x512', type: 'image/png' },
+        { src: BRAND_LOGO_URL, sizes: '192x192', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+    manifestLink.href = `data:application/manifest+json,${encodeURIComponent(JSON.stringify(manifest))}`;
+  }
+}
+applyBrandAssets();
+
+function showLoading(v) {
+  document.getElementById('loadingOverlay').classList.toggle('hidden', !v);
+}
+
+function toast(msg, tipo = 'success', ms = 3500) {
+  const c = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  const icons = { success:'✓', error:'✗', info:'ℹ' };
+  el.className = `toast toast-${tipo}`;
+  el.innerHTML = `<span>${icons[tipo]||'•'}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+// ► URL do Web App principal (Code.gs)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz6bzIQOPrZzuC6K1MGOx1XcRvtLBPybQSmTzG15vicGAr-uB7EYv_36yRJ5heGKUWQ/exec';
+
+// ► URL do Web App PRD (Code_PRD.gs — deploy separado)
+const GAS_PRD_URL = 'https://script.google.com/macros/s/AKfycbyCIL1C600IxXhyPMES7V6e2k3iIJyW6UDzcwbH3g4SFooHihm4YqoO_vr2pRa_nVXkLQ/exec';
+
+async function _gasCall(url, fn, args) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ fn, args })
+  });
+  if (!res.ok) throw new Error('Erro HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.erro || 'Erro no servidor');
+  return data.data;
+}
+
+function gs(...args)    { return _gasCall(GAS_URL,     args[0], args.slice(1)); }
+function gsPRD(...args) { return _gasCall(GAS_PRD_URL, args[0], args.slice(1)); }
+
+function fmtDate(s) {
+  if (!s) return '—';
+  const [y, m, d] = String(s).slice(0,10).split('-');
+  return `${d}/${m}/${y}`;
+}
+function fmtNum(n) { return Number(n).toLocaleString('pt-BR'); }
+function _qtdInt(id) { const el = document.getElementById(id); return el ? Number(String(el.value || '').replace(/[^\d]/g, '')) || 0 : 0; }
+function fmtKg(n)  { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1}) + ' kg'; }
+
+function daysDiff(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(String(dateStr).slice(0,10));
+  const t = new Date(); t.setHours(0,0,0,0);
+  return Math.round((d - t) / 86400000);
+}
+
+function corBadgeDias(rem) {
+  if (rem === null) return 'cinza';
+  if (rem < 0)   return 'vermelho';
+  if (rem <= 15)  return 'vermelho';
+  if (rem <= 30)  return 'amarelo';
+  return 'verde';
+}
+
+function navigate(pagina) {
+  const root = document.getElementById('appRoot');
+  if (pagina === 'login')   renderLogin(root);
+  if (pagina === 'viveiro') renderViveiro(root);
+  if (pagina === 'gerente') renderGerente(root);
+}
+
+function logout() {
+  showLoading(true);
+  _limparSessao();
+  gs('logout', App.token).finally(() => {
+    App.token = null; App.papel = null; App.nome = null;
+    showLoading(false);
+    navigate('login');
+  });
+}
+
+function _salvarSessao(token, papel, nome) {
+  localStorage.setItem('spg_sess', JSON.stringify({ token, papel, nome }));
+}
+function _limparSessao() {
+  localStorage.removeItem('spg_sess');
+}
+
+window.onload = () => {
+  const salvo = localStorage.getItem('spg_sess');
+  if (!salvo) { navigate('login'); return; }
+  try {
+    const { token, papel, nome } = JSON.parse(salvo);
+    showLoading(true);
+    gs('validarSessao', token).then(sess => {
+      showLoading(false);
+      if (sess.ok) {
+        App.token = token; App.papel = sess.papel; App.nome = sess.nome;
+        navigate((sess.papel === 'gerente' || sess.papel === 'diretoria') ? 'gerente' : 'viveiro');
+      } else {
+        // sessão realmente inválida/expirada no servidor — aí sim apaga
+        _limparSessao(); navigate('login');
+      }
+    }).catch(() => {
+      // erro de rede/conexão: não apaga a sessão salva, só volta pro login pra tentar de novo no próximo carregamento
+      showLoading(false); navigate('login');
+    });
+  } catch (e) { _limparSessao(); navigate('login'); }
+};
+</script>
+<script>
+// ── LOGIN ───────────────────────────────────────────────────
+function renderLogin(root) {
+  root.innerHTML = `
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:#f1f5f4;">
+    <div style="width:100%;max-width:340px;">
+      <div style="text-align:center;margin-bottom:32px;">
+        <img src="https://i.imgur.com/vOyYWgp.png" style="width:64px;height:64px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,.08);margin-bottom:16px;">
+        <h1 style="color:#1e293b;font-size:22px;font-weight:900;margin:0;letter-spacing:-.3px;">SPG · TRANSPLANTIO</h1>
+        <p style="color:var(--verde);font-size:13px;margin:4px 0 0;font-weight:600;">Controle de Parceiros</p>
+      </div>
+      <div class="card" style="padding:24px;">
+        <div class="form-group">
+          <label class="form-label">Usuário</label>
+          <input id="loginUsuario" type="text" class="form-control" placeholder="Digite seu usuário" autocomplete="username"
+            onkeydown="if(event.key==='Enter')document.getElementById('loginSenha').focus()">
+        </div>
+        <div class="form-group" style="margin-bottom:20px;">
+          <label class="form-label">Senha</label>
+          <div style="position:relative;">
+            <input id="loginSenha" type="password" class="form-control" style="padding-right:42px;" placeholder="Digite sua senha" autocomplete="current-password"
+              onkeydown="if(event.key==='Enter')doLogin()">
+            <button onclick="toggleLoginPwd()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:0;" title="Mostrar/ocultar">👁</button>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;">
+          <input type="checkbox" id="loginLembrar" checked style="width:16px;height:16px;accent-color:var(--verde);cursor:pointer;">
+          <span style="color:#475569;font-size:12px;font-weight:600;">Manter conectado por 30 dias</span>
+        </label>
+        <p id="loginErro" style="display:none;color:#b91c1c;font-size:12px;font-weight:600;text-align:center;margin:-8px 0 14px;background:#fee2e2;padding:8px;border-radius:8px;"></p>
+        <button onclick="doLogin()" id="btnLogin" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:14px;">
+          Entrar
+        </button>
+      </div>
+      <p style="color:#94a3b8;font-size:10px;text-align:center;margin-top:28px;">SPG • Sistema de Controle Interno</p>
+    </div>
+  </div>`;
+  document.getElementById('loginUsuario').focus();
+}
+
+function toggleLoginPwd() {
+  const inp = document.getElementById('loginSenha');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function doLogin() {
+  const usuario  = (document.getElementById('loginUsuario').value || '').trim();
+  const senha    = document.getElementById('loginSenha').value || '';
+  const lembrar  = document.getElementById('loginLembrar').checked;
+  const erroEl   = document.getElementById('loginErro');
+  const btn      = document.getElementById('btnLogin');
+  erroEl.style.display = 'none';
+  if (!usuario || !senha) {
+    erroEl.textContent = 'Preencha usuário e senha.';
+    erroEl.style.display = 'block'; return;
+  }
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+  showLoading(true);
+  gs('login', usuario, senha, lembrar)
+    .then(res => {
+      showLoading(false); btn.textContent = 'Entrar'; btn.disabled = false;
+      if (!res.ok) { erroEl.textContent = res.erro || 'Erro ao autenticar.'; erroEl.style.display = 'block'; return; }
+      App.token = res.token; App.papel = res.papel; App.nome = res.nome;
+      if (lembrar) _salvarSessao(res.token, res.papel, res.nome);
+      toast('Bem-vindo, ' + res.nome + '!', 'success');
+      navigate((res.papel === 'gerente' || res.papel === 'diretoria') ? 'gerente' : 'viveiro');
+    })
+    .catch(err => {
+      showLoading(false); btn.textContent = 'Entrar'; btn.disabled = false;
+      erroEl.textContent = err.message || 'Erro de conexão. Tente novamente.'; erroEl.style.display = 'block';
+    });
+}
+</script>
+<script>
+// ── VIVEIRO ─────────────────────────────────────────────────
+const Viveiro = { parceiros: [], culturas: [], editandoId: null };
+
+function renderViveiro(root) {
+  root.innerHTML = `
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <img src="https://i.imgur.com/vOyYWgp.png" alt="SPG">
+      <div><h1>VIVEIRO</h1><p>Modo Registro</p></div>
+    </div>
+    <div class="navbar-actions">
+      <span style="font-size:11px;color:#64748b;font-weight:600;" class="hide-mobile" id="vNomeUsuario"></span>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Sair</button>
+    </div>
+  </nav>
+  <div style="max-width:560px;margin:0 auto;padding:16px;padding-bottom:80px;">
+    <div class="card mb-3" id="vFormCard">
+      <div class="card-header" style="background:var(--verde);">
+        <h3 style="color:#fff;display:flex;align-items:center;gap:8px;">
+          <span>🌱</span> <span id="vFormTitle">Registrar Transplantio</span>
+        </h3>
+        <button class="btn-icon" onclick="vLimparForm()" style="color:rgba(255,255,255,.7);">✕</button>
+      </div>
+      <div class="card-body">
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label required">Parceiro</label>
+            <select id="v_parceiro" class="form-control" onchange="vCalcPrevisao()"><option value="">Selecione...</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Data do Transplantio</label>
+            <input type="date" id="v_data" class="form-control" onchange="vCalcPrevisao()">
+          </div>
+        </div>
+        <div class="form-row cols-3">
+          <div class="form-group">
+            <label class="form-label required">Cultura</label>
+            <select id="v_cultura" class="form-control" onchange="vCalcPrevisao()"><option value="">Selecione...</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Quantidade (mudas)</label>
+            <input type="text" inputmode="numeric" id="v_qtd" class="form-control" placeholder="Ex: 6.000" oninput="vAtualizarKG()" onblur="this.value = this.value ? fmtNum(_qtdInt('v_qtd')) : '';">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Média gr/unidade</label>
+            <input type="number" id="v_mediaGr" class="form-control" placeholder="Ex: 200" step="1" min="1" oninput="Viveiro._mediaManual = !!this.value; document.getElementById('v_mediaGrFonte').textContent = this.value ? 'Será salvo como informado manualmente' : ''; vAtualizarKG();">
+            <div id="v_mediaGrFonte" class="text-muted" style="margin-top:3px;"></div>
+          </div>
+        </div>
+        <div class="form-row cols-4">
+          <div class="form-group">
+            <label class="form-label">Área (m²)</label>
+            <input type="number" id="v_area" class="form-control" placeholder="Opcional">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lote</label>
+            <input type="text" id="v_lote" class="form-control" placeholder="Opcional">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Variedade</label>
+            <select id="v_variedade" class="form-control"><option value="">Nenhuma</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="color:var(--verde);">Col. Prevista</label>
+            <input type="date" id="v_dataColh" class="form-control" style="border-color:#bbf7d0;background:#f0fdf4;">
+          </div>
+        </div>
+        <div id="v_preview" class="hidden" style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e;font-weight:600;">
+          <span>📅</span> <span id="v_previewText"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">KG Previsto</label>
+          <input type="number" id="v_kgPrev" class="form-control" placeholder="Calculado automaticamente" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observações</label>
+          <input type="text" id="v_obs" class="form-control" placeholder="Ex: mudas grandes...">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button id="vBtnCancelar" class="btn btn-secondary hidden" onclick="vLimparForm()" style="flex:1;">Cancelar</button>
+          <button onclick="vSubmit()" class="btn btn-primary" style="flex:1;justify-content:center;font-size:14px;padding:12px;">
+            🌱 <span id="vBtnTxt">Registrar Transplantio</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3>📋 Meus Registros Recentes</h3>
+        <button class="btn btn-secondary btn-sm" onclick="vCarregarRegistros()">↻ Atualizar</button>
+      </div>
+      <div id="vListaRegistros" style="padding:12px;">
+        <p class="text-muted text-center" style="padding:20px 0;">Carregando...</p>
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById('vNomeUsuario').textContent = App.nome || '';
+  document.getElementById('v_data').value = new Date().toISOString().slice(0,10);
+  showLoading(true);
+  Promise.all([gs('listarParceiros', App.token), gs('listarCulturas', App.token), gs('listarVariedades', App.token).catch(() => [])])
+    .then(([parceiros, culturas, variedades]) => {
+      showLoading(false);
+      Viveiro.parceiros = parceiros; Viveiro.culturas = culturas; Viveiro.variedades = variedades;
+      const selP = document.getElementById('v_parceiro');
+      const selC = document.getElementById('v_cultura');
+      const selV = document.getElementById('v_variedade');
+      parceiros.forEach(p => { const o = document.createElement('option'); o.value = p.id_parceiro; o.textContent = p.nome_fazenda; selP.appendChild(o); });
+      culturas.forEach(c => { const o = document.createElement('option'); o.value = c.id_cultura; o.textContent = c.nome_exibicao; selC.appendChild(o); });
+      variedades.forEach(v => { const o = document.createElement('option'); o.value = v.id_variedade; o.textContent = v.nome_exibicao; selV.appendChild(o); });
+      vCarregarRegistros();
+    }).catch(err => { showLoading(false); toast('Erro ao carregar dados: ' + err.message, 'error'); });
+}
+</script>
+<script>
+// vCalcPrevisao() chama o servidor (data prevista + média estimada do PRD) só quando
+// parceiro/cultura/data mudam. Quantidade e média digitadas ficam com vAtualizarKG() (local).
+function vCalcPrevisao() {
+  const id_cultura  = document.getElementById('v_cultura').value;
+  const id_parceiro = document.getElementById('v_parceiro').value;
+  const data        = document.getElementById('v_data').value;
+  const prev        = document.getElementById('v_preview');
+  const mediaGrEl   = document.getElementById('v_mediaGr');
+
+  if (!id_cultura || !data) { prev.classList.add('hidden'); Viveiro._prev = null; return; }
+
+  gs('calcularPrevisao', App.token, id_cultura, data, 0, id_parceiro)
+    .then(res => {
+      Viveiro._prev = res;
+      document.getElementById('v_dataColh').value = res.data_prevista_colheita;
+      // atualiza com a média estimada (histórico do mês de colheita, ou média geral do parceiro) —
+      // a menos que o usuário tenha digitado a média manualmente, nesse caso não mexe
+      if (!Viveiro._mediaManual && res.media_gr_estimada) {
+        mediaGrEl.value = res.media_gr_estimada;
+        document.getElementById('v_mediaGrFonte').textContent = _fonteMediaTexto(res.media_gr_fonte);
+      }
+      vAtualizarKG();
+    }).catch(() => prev.classList.add('hidden'));
+}
+
+// Recalcula KG Previsto e o texto de prévia usando só o que já está na tela — sem ida ao servidor.
+function vAtualizarKG() {
+  const res  = Viveiro._prev;
+  const prev = document.getElementById('v_preview');
+  if (!res) { prev.classList.add('hidden'); return; }
+  const qtd     = _qtdInt('v_qtd');
+  const mediaGr = Number(document.getElementById('v_mediaGr').value) || 0;
+  if (qtd) {
+    document.getElementById('v_kgPrev').value = mediaGr > 0
+      ? (mediaGr * qtd / 1000).toFixed(1)
+      : res.kg_previsto;
+  }
+  const rem = daysDiff(res.data_prevista_colheita);
+  const s = rem > 0 ? `em ${rem} dias` : rem === 0 ? 'hoje!' : `${Math.abs(rem)} dias atrás`;
+  const fonteTxt = res.media_gr_fonte === 'prd_mensal' ? ' (PRD do mês)' : res.media_gr_fonte === 'prd_geral' ? ' (PRD geral)' : res.media_gr_fonte === 'parceiro' ? ' (média geral do parceiro)' : '';
+  const mediaInfo = mediaGr > 0 ? ` • ${mediaGr}g/un${fonteTxt}` : '';
+  document.getElementById('v_previewText').textContent = `Colheita prevista: ${fmtDate(res.data_prevista_colheita)} (${s}) • ${res.dias_padrao} dias padrão${mediaInfo}`;
+  prev.classList.remove('hidden');
+}
+
+function vSubmit() {
+  const id_parceiro = document.getElementById('v_parceiro').value;
+  const data        = document.getElementById('v_data').value;
+  const id_cultura  = document.getElementById('v_cultura').value;
+  const qtd         = _qtdInt('v_qtd');
+  if (!id_parceiro || !data || !id_cultura || !qtd) {
+    toast('Preencha os campos obrigatórios: Parceiro, Data, Cultura e Quantidade.', 'error'); return;
+  }
+  const dados = {
+    id_parceiro, data_transplantio: data, id_cultura,
+    id_variedade:           document.getElementById('v_variedade').value || undefined,
+    quantidade_unidades:    qtd,
+    area_m2:                Number(document.getElementById('v_area').value) || 0,
+    lote:                   document.getElementById('v_lote').value,
+    media_gr_por_unidade:   Number(document.getElementById('v_mediaGr').value) || undefined,
+    data_prevista_colheita: document.getElementById('v_dataColh').value || undefined,
+    kg_previsto:            Number(document.getElementById('v_kgPrev').value) || undefined,
+    observacoes:            document.getElementById('v_obs').value
+  };
+  showLoading(true);
+  const fn   = Viveiro.editandoId ? 'atualizarTransplantio' : 'registrarTransplantio';
+  const args = Viveiro.editandoId ? [App.token, Viveiro.editandoId, dados] : [App.token, dados];
+  gs(fn, ...args)
+    .then(() => { showLoading(false); toast(Viveiro.editandoId ? 'Registro atualizado!' : 'Transplantio registrado com sucesso!', 'success'); vLimparForm(); vCarregarRegistros(); })
+    .catch(err => { showLoading(false); toast('Erro: ' + err.message, 'error'); });
+}
+
+function vLimparForm() {
+  Viveiro.editandoId = null;
+  Viveiro._mediaManual = false;
+  ['v_parceiro','v_cultura','v_variedade','v_qtd','v_area','v_lote','v_obs','v_kgPrev','v_mediaGr'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('v_data').value = new Date().toISOString().slice(0,10);
+  document.getElementById('v_dataColh').value = '';
+  document.getElementById('v_mediaGrFonte').textContent = '';
+  document.getElementById('v_preview').classList.add('hidden');
+  document.getElementById('vFormTitle').textContent = 'Registrar Transplantio';
+  document.getElementById('vBtnTxt').textContent = 'Registrar Transplantio';
+  document.getElementById('vBtnCancelar').classList.add('hidden');
+}
+
+function vCarregarRegistros() {
+  const el = document.getElementById('vListaRegistros');
+  el.innerHTML = '<p class="text-muted text-center" style="padding:20px 0;">Carregando...</p>';
+  gs('listarMeusTransplantios', App.token)
+    .then(lista => {
+      if (!lista.length) { el.innerHTML = '<p class="text-muted text-center" style="padding:20px 0;">Nenhum registro ainda.</p>'; return; }
+      el.innerHTML = lista.map(r => {
+        const rem = daysDiff(r.data_prevista_colheita);
+        const cor = corBadgeDias(rem);
+        const txt = rem === null ? '—' : rem < 0 ? `${Math.abs(rem)}d atrás` : rem === 0 ? 'Hoje!' : `${rem}d`;
+        const dentroJanela = (new Date() - new Date(r.criado_em)) < (24 * 3600 * 1000);
+        return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 8px;border-bottom:1px solid #f1f5f9;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+              <strong style="font-size:13px;">${r.nome_parceiro}</strong>
+              <span class="badge badge-${cor}">${txt}</span>
+            </div>
+            <div style="font-size:11px;color:#64748b;">${r.nome_cultura}${r.nome_variedade ? ' (' + r.nome_variedade + ')' : ''} • ${fmtNum(r.quantidade_unidades)} mudas${r.kg_previsto ? ' • ' + fmtKg(r.kg_previsto) + ' prev.' : ''}</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:2px;">Transplantio: ${fmtDate(r.data_transplantio)} • Col. prevista: ${fmtDate(r.data_prevista_colheita)}</div>
+            ${r.observacoes ? `<div style="font-size:10px;color:#94a3b8;font-style:italic;">${r.observacoes}</div>` : ''}
+          </div>
+          ${dentroJanela ? `<button onclick='vEditarRegistro(${JSON.stringify(r)})' class="btn btn-secondary btn-sm" style="margin-left:8px;flex-shrink:0;">✎</button>` : ''}
+        </div>`;
+      }).join('');
+    })
+    .catch(err => { el.innerHTML = `<p class="text-muted text-center">Erro: ${err.message}</p>`; });
+}
+
+function vEditarRegistro(r) {
+  Viveiro.editandoId = r.id_transplantio;
+  Viveiro._mediaManual = r.media_gr_fonte === 'manual';
+  document.getElementById('v_parceiro').value  = r.id_parceiro;
+  document.getElementById('v_data').value      = String(r.data_transplantio).slice(0,10);
+  document.getElementById('v_cultura').value   = r.id_cultura;
+  document.getElementById('v_variedade').value = r.id_variedade || '';
+  document.getElementById('v_qtd').value       = fmtNum(r.quantidade_unidades);
+  document.getElementById('v_area').value      = r.area_m2 || '';
+  document.getElementById('v_lote').value      = r.lote || '';
+  document.getElementById('v_mediaGr').value   = r.media_gr_por_unidade || '';
+  document.getElementById('v_mediaGrFonte').textContent = _fonteMediaTexto(r.media_gr_fonte);
+  document.getElementById('v_dataColh').value  = String(r.data_prevista_colheita).slice(0,10);
+  document.getElementById('v_kgPrev').value    = r.kg_previsto || '';
+  document.getElementById('v_obs').value       = r.observacoes || '';
+  document.getElementById('vFormTitle').textContent = '✎ Editando Registro';
+  document.getElementById('vBtnTxt').textContent    = 'Salvar Alterações';
+  document.getElementById('vBtnCancelar').classList.remove('hidden');
+  document.getElementById('vFormCard').scrollIntoView({ behavior: 'smooth' });
+  vCalcPrevisao();
+}
+</script>
+<script>
+// ── GERENTE ─────────────────────────────────────────────────
+const Gerente = { dados: null, filtro: { periodo:'mes', id_parceiro:'', id_cultura:'' }, editTrId: null, cP: null, cK: null, cPRDDia: null, cPRDSem: null, cTrLinha: null, prdCarregado: false };
+
+function _leitor() { return App.papel === 'diretoria'; }
+
+function renderGerente(root) {
+  const somenteLeitura = _leitor();
+  const abasVisiveis = somenteLeitura
+    ? ['dashboard','parceiros','transplantios','colheitas']
+    : ['dashboard','parceiros','transplantios','colheitas','admin'];
+  root.innerHTML = `
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <img src="https://i.imgur.com/vOyYWgp.png" alt="SPG">
+      <div><h1>SPG ${somenteLeitura ? 'DIRETORIA' : 'GERENTE'}</h1><p id="gNomeEl"></p></div>
+    </div>
+    <div class="navbar-actions">
+      <button class="btn btn-secondary btn-sm" onclick="gOpenIA()" style="background:linear-gradient(135deg,#ede9fe,#dbeafe);color:#6d28d9;font-weight:800;">✨ Assistente IA</button>
+      ${somenteLeitura ? '' : `
+      <button class="btn btn-secondary btn-sm" onclick="gOpenWA()">📋 WhatsApp</button>
+      <button class="btn btn-secondary btn-sm" onclick="gOpenTr()">+ Transplantio</button>`}
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Sair</button>
+    </div>
+  </nav>
+  <div class="tabbar">
+    ${abasVisiveis.map(t => {
+      const ic = {dashboard:'📊',parceiros:'👥',transplantios:'🌱',colheitas:'🌾',admin:'⚙'}[t];
+      const lb = {dashboard:'Dashboard',parceiros:'Parceiros',transplantios:'Transplantios',colheitas:'Colheitas',admin:'Admin'}[t];
+      return `<button id="tab_${t}" class="tab-btn" onclick="gTab('${t}')"><span class="tab-icon">${ic}</span><span class="tab-label">${lb}</span></button>`;
+    }).join('')}
+  </div>
+  <div style="max-width:1900px;margin:0 auto;padding:16px;padding-bottom:88px;">
+
+    <div id="aba_dashboard">
+      <div class="card mb-3"><div class="card-body" style="padding:12px 16px;"><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        <div><label class="form-label">Período</label><select id="gFP" class="form-control" style="min-width:120px;" onchange="gFiltro()"><option value="semana">Semana</option><option value="mes" selected>Mês</option><option value="trimestre">Trimestre</option><option value="ano">Ano</option><option value="tudo">Tudo</option></select></div>
+        <div><label class="form-label">Parceiro</label><select id="gFPa" class="form-control" style="min-width:140px;" onchange="gFiltro()"><option value="">Todos</option></select></div>
+        <div><label class="form-label">Cultura</label><select id="gFCu" class="form-control" style="min-width:130px;" onchange="gFiltro()"><option value="">Todas</option></select></div>
+      </div></div></div>
+      <div class="stats-grid mb-3">
+        <div class="stat-card"><div class="stat-value stat-verde" id="sc_tr">--</div><div class="stat-label">Transplantios</div></div>
+        <div class="stat-card"><div class="stat-value stat-azul" id="sc_unp">--</div><div class="stat-label">Mudas Prev.</div></div>
+        <div class="stat-card"><div class="stat-value stat-azul" id="sc_une">--</div><div class="stat-label">Mudas Entregues</div></div>
+        <div class="stat-card"><div class="stat-value stat-ambar" id="sc_pcu">--</div><div class="stat-label">% Mudas</div></div>
+        <div class="stat-card"><div class="stat-value stat-ambar" id="sc_kp">--</div><div class="stat-label">KG Previsto</div></div>
+        <div class="stat-card"><div class="stat-value stat-verde" id="sc_ke">--</div><div class="stat-label">KG Entregue</div></div>
+        <div class="stat-card"><div class="stat-value stat-ambar" id="sc_pck">--</div><div class="stat-label">% KG</div></div>
+        <div class="stat-card"><div class="stat-value stat-vermelho" id="sc_pr">--</div><div class="stat-label">Próximas</div></div>
+      </div>
+      <div class="grid-auto mb-3">
+        <div class="card"><div class="card-header"><h3>📈 Transplantios/Período</h3></div><div class="card-body" style="padding:12px;"><canvas id="cPer" height="180"></canvas></div></div>
+        <div class="card"><div class="card-header"><h3>📦 KG Previsto vs Entregue</h3></div><div class="card-body" style="padding:12px;"><canvas id="cKg" height="180"></canvas></div></div>
+      </div>
+      <div class="card mb-3"><div class="card-header"><h3>📅 Próximas Colheitas</h3></div>
+        <div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>Cultura</th><th>Mudas</th><th>KG prev.</th><th>Col. prev.</th><th>Restam</th><th>Ações</th></tr></thead><tbody id="tProx"></tbody></table></div></div>
+
+      <!-- ── PRD: Histórico de Entregas ──────────────────────── -->
+      <div style="border-top:2px solid #dbeafe;margin-top:20px;padding-top:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;font-size:15px;font-weight:800;color:#1d4ed8;">📦 Histórico de Entregas — PRD Consolidado</h2>
+          <button class="btn btn-sm" style="background:#dbeafe;color:#1d4ed8;font-weight:700;" onclick="gLoadPRD()">↻ Atualizar</button>
+        </div>
+
+        <div class="card mb-3"><div class="card-body" style="padding:12px 16px;">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+            <div><label class="form-label">Ano</label><select id="prdFAno" class="form-control" style="min-width:90px;" onchange="gLoadPRD()"><option value="">Todos</option></select></div>
+            <div><label class="form-label">Mês</label><select id="prdFMes" class="form-control" style="min-width:120px;" onchange="gLoadPRD()"><option value="">Todos</option></select></div>
+            <div><label class="form-label">Parceiro</label><select id="prdFPa" class="form-control" style="min-width:150px;" onchange="gLoadPRD()"><option value="">Todos</option></select></div>
+            <div><label class="form-label">Classe</label><select id="prdFCl" class="form-control" style="min-width:130px;" onchange="gLoadPRD()"><option value="">Todas</option></select></div>
+          </div>
+        </div></div>
+
+        <div class="stats-grid mb-3" id="prdStats">
+          <div class="stat-card"><div class="stat-value stat-azul" style="font-size:14px;">—</div><div class="stat-label">Carregando...</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr;gap:12px;" class="mb-3">
+          <div class="card"><div class="card-header"><h3>📅 KG Entregue por Dia <span id="prdDiaLabel" style="font-size:10px;color:#94a3b8;font-weight:400;">(últimos 90 dias)</span></h3></div><div class="card-body" style="padding:12px;"><canvas id="cPRDDia" height="170"></canvas></div></div>
+          <div class="card"><div class="card-header"><h3>📊 KG por Semana + Projeção de Colheitas</h3></div><div class="card-body" style="padding:12px;"><canvas id="cPRDSem" height="170"></canvas></div></div>
+        </div>
+
+        <div class="card" id="prdPaCard" style="display:none;">
+          <div class="card-header"><h3>👥 Entregas por Parceiro</h3></div>
+          <div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>KG Total</th><th>Unidades</th><th>Média g/unid.</th></tr></thead><tbody id="prdTPa"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="aba_parceiros" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h2 style="margin:0;font-size:16px;font-weight:800;">Painel de Parceiros</h2>${somenteLeitura ? '' : '<button class="btn btn-primary btn-sm" onclick="gOpenPa()">+ Novo</button>'}</div>
+      <div id="gPainel" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
+    </div>
+
+    <div id="aba_transplantios" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h2 style="margin:0;font-size:16px;font-weight:800;">Painel de Plantios</h2>${somenteLeitura ? '' : '<button class="btn btn-primary btn-sm" onclick="gOpenTr()">+ Registrar</button>'}</div>
+
+      <div class="card mb-3"><div class="card-body" style="padding:12px 16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div><label class="form-label">De (plantio)</label><input type="date" id="trFDe" class="form-control" style="min-width:150px;" onchange="gTrFiltrar()"></div>
+          <div><label class="form-label">Até (plantio)</label><input type="date" id="trFAte" class="form-control" style="min-width:150px;" onchange="gTrFiltrar()"></div>
+          <div><label class="form-label">Parceiro</label><select id="trFPa" class="form-control" style="min-width:170px;" onchange="gTrFiltrar()"><option value="">Todos os Parceiros</option></select></div>
+          <button class="btn btn-secondary btn-sm" onclick="gTrLimparFiltro()">Limpar filtro</button>
+          <button class="btn btn-secondary btn-sm" id="trBtnRotulos" onclick="gToggleRotulos()">Ocultar Rótulos</button>
+        </div>
+      </div></div>
+
+      <div class="stats-grid mb-3" id="trStats"></div>
+
+      <div class="grid-auto mb-3">
+        <div class="card"><div class="card-header"><h3>Mudas por Parceiro</h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:230px;"><canvas id="cTrMudasParceiro"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><h3>Produção Prevista (kg) por Parceiro</h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:230px;"><canvas id="cTrKgParceiro"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><h3>Participação das Variedades</h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:180px;"><canvas id="cTrVariedades"></canvas></div><div id="trVariedadesLegenda" style="margin-top:8px;font-size:12px;"></div></div></div>
+      </div>
+
+      <div class="grid-auto mb-3">
+        <div class="card"><div class="card-header"><h3>Linha do Tempo dos Plantios</h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:230px;"><canvas id="cTrLinha"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><h3>Calendário de Colheita (kg previsto)</h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:230px;"><canvas id="cTrColheitaCal"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><h3>Parceiro × Variedade (mudas)</h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:230px;"><canvas id="cTrParceiroVariedade"></canvas></div></div></div>
+      </div>
+
+      <div class="grid-auto mb-3">
+        <div class="card"><div class="card-header"><h3>Plantios por Parceiro</h3></div><div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>Qtde.</th></tr></thead><tbody id="trTabPlantios"></tbody></table></div></div>
+        <div class="card"><div class="card-header"><h3>Heatmap de Colheitas (kg previsto)</h3></div><div class="table-wrap" id="trHeatmapWrap"></div></div>
+        <div class="card"><div class="card-header"><h3>Resumo Geral</h3></div><div class="card-body" id="trResumoGeral" style="padding:16px;"></div></div>
+      </div>
+
+      <p class="text-muted text-center mb-3" id="trAtualizadoEm"></p>
+
+      <div class="card"><div class="card-header"><h3>📋 Registros Detalhados</h3></div><div class="table-wrap table-scroll"><table><thead><tr><th>Data</th><th>Parceiro</th><th>Cultura</th><th>Variedade</th><th>Mudas</th><th>KG prev.</th><th>Col. Prev.</th><th>Lote</th><th>Ações</th></tr></thead><tbody id="tTr"></tbody></table></div></div>
+    </div>
+
+    <div id="aba_colheitas" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h2 style="margin:0;font-size:16px;font-weight:800;">Colheitas</h2>${somenteLeitura ? '' : '<button class="btn btn-primary btn-sm" onclick="gOpenCo()">+ Registrar</button>'}</div>
+      <div class="card"><div class="table-wrap"><table><thead><tr><th>Data</th><th>Parceiro</th><th>Cultura</th><th>KG</th><th>Unid.</th><th>Obs.</th><th></th></tr></thead><tbody id="tCo"></tbody></table></div></div>
+    </div>
+
+    <div id="aba_admin" class="hidden">
+      <div class="grid-auto">
+        <div class="card"><div class="card-header"><h3>👤 Usuários</h3><button class="btn btn-primary btn-sm" onclick="gOpenUs()">+ Novo</button></div><div id="gListUs" class="card-body" style="padding:8px 16px;"></div></div>
+        <div class="card"><div class="card-header"><h3>🌱 Culturas</h3></div><div id="gListCu" class="card-body" style="padding:8px 16px;"></div></div>
+        <div class="card"><div class="card-header"><h3>🧬 Variedades</h3><button class="btn btn-primary btn-sm" onclick="gNovaVariedade()">+ Nova</button></div><div id="gListVa" class="card-body" style="padding:8px 16px;"></div></div>
+      </div>
+    </div>
+
+  </div>`;
+
+  document.getElementById('gNomeEl').textContent = App.nome || '';
+  gTab('dashboard');
+  gLoad();
+}
+</script>
+<script>
+// modais do gerente
+function _gModais() { return `
+  <div class="modal-overlay" id="mTr"><div class="modal" style="max-width:500px;">
+    <div class="modal-header"><h3 id="mTrH">Registrar Transplantio</h3><button class="btn-icon" onclick="gClose('mTr')">&times;</button></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label class="form-label required">Parceiro</label><select id="mTrP" class="form-control" onchange="gCP()"><option value="">Selecione...</option></select></div>
+      <div class="form-group"><label class="form-label required">Data</label><input type="date" id="mTrD" class="form-control" onchange="gCP()"></div>
+    </div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label class="form-label required">Cultura</label><select id="mTrC" class="form-control" onchange="gCP()"><option value="">Selecione...</option></select></div>
+      <div class="form-group"><label class="form-label required">Qtd. Mudas</label><input type="text" inputmode="numeric" id="mTrQ" class="form-control" placeholder="Ex: 6.000" oninput="gAtualizarKG()" onblur="this.value = this.value ? fmtNum(_qtdInt('mTrQ')) : '';"></div>
+    </div>
+    <div class="form-row cols-4">
+      <div class="form-group"><label class="form-label">Área m²</label><input type="number" id="mTrA" class="form-control"></div>
+      <div class="form-group"><label class="form-label">Lote</label><input type="text" id="mTrL" class="form-control"></div>
+      <div class="form-group"><label class="form-label">Variedade</label><select id="mTrV" class="form-control"><option value="">Nenhuma</option></select></div>
+      <div class="form-group"><label class="form-label" style="color:var(--verde);">Col. Prevista</label><input type="date" id="mTrDC" class="form-control" style="border-color:#bbf7d0;background:#f0fdf4;"></div>
+    </div>
+    <div class="form-row cols-3">
+      <div class="form-group"><label class="form-label">Média gr/unidade</label><input type="number" id="mTrMG" class="form-control" placeholder="Ex: 200" step="1" min="1" oninput="Gerente._mediaManual = !!this.value; document.getElementById('mTrMGFonte').textContent = this.value ? 'Será salvo como informado manualmente' : ''; gAtualizarKG();"><div id="mTrMGFonte" class="text-muted" style="margin-top:3px;"></div></div>
+      <div class="form-group"><label class="form-label">KG Previsto</label><input type="number" id="mTrKG" class="form-control" step="0.1"></div>
+      <div class="form-group"><label class="form-label">Obs.</label><input type="text" id="mTrOB" class="form-control"></div>
+    </div>
+    <div id="mTrPrv" class="hidden" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;font-size:11px;color:#92400e;font-weight:600;margin-bottom:12px;"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="gClose('mTr')">Cancelar</button><button class="btn btn-primary" onclick="gSaveTr()"><span id="mTrBtn">Registrar</span></button></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mCo"><div class="modal" style="max-width:420px;">
+    <div class="modal-header"><h3>Registrar Colheita</h3><button class="btn-icon" onclick="gClose('mCo')">&times;</button></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label class="form-label required">Parceiro</label><select id="mCoP" class="form-control"><option value="">Selecione...</option></select></div>
+      <div class="form-group"><label class="form-label required">Cultura</label><select id="mCoCu" class="form-control"><option value="">Selecione...</option></select></div>
+    </div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label class="form-label required">Data</label><input type="date" id="mCoD" class="form-control"></div>
+      <div class="form-group"><label class="form-label required">KG Entregue</label><input type="number" id="mCoKG" class="form-control" step="0.1"></div>
+    </div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label class="form-label">Unidades</label><input type="number" id="mCoUn" class="form-control"></div>
+      <div class="form-group"><label class="form-label">Obs.</label><input type="text" id="mCoOB" class="form-control"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="gClose('mCo')">Cancelar</button><button class="btn btn-primary" onclick="gSaveCo()">Registrar</button></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mPa"><div class="modal" style="max-width:400px;">
+    <div class="modal-header"><h3>Novo Parceiro</h3><button class="btn-icon" onclick="gClose('mPa')">&times;</button></div>
+    <div class="form-group"><label class="form-label required">Nome Fazenda</label><input type="text" id="mPaN" class="form-control"></div>
+    <div class="form-group"><label class="form-label">Responsável</label><input type="text" id="mPaR" class="form-control"></div>
+    <div class="form-group"><label class="form-label">Contato</label><input type="text" id="mPaC" class="form-control"></div>
+    <div class="form-group"><label class="form-label">Apelidos (WhatsApp)</label><input type="text" id="mPaAp" class="form-control" placeholder="Separados por vírgula, ex: Oliveira, Sítio Aracá"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="gClose('mPa')">Cancelar</button><button class="btn btn-primary" onclick="gSavePa()">Salvar</button></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mPaE"><div class="modal" style="max-width:400px;">
+    <div class="modal-header"><h3>Editar Parceiro</h3><button class="btn-icon" onclick="gClose('mPaE')">&times;</button></div>
+    <input type="hidden" id="mPaEId">
+    <div class="form-group"><label class="form-label required">Nome Fazenda</label><input type="text" id="mPaEN" class="form-control"></div>
+    <div class="form-group"><label class="form-label">Responsável</label><input type="text" id="mPaER" class="form-control"></div>
+    <div class="form-group"><label class="form-label">Contato</label><input type="text" id="mPaEC" class="form-control"></div>
+    <div class="form-group"><label class="form-label">Apelidos (WhatsApp)</label><input type="text" id="mPaEAp" class="form-control" placeholder="Separados por vírgula, ex: Oliveira, Sítio Aracá"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="gClose('mPaE')">Cancelar</button><button class="btn btn-primary" onclick="gSavePaE()">Salvar</button></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mUs"><div class="modal" style="max-width:380px;">
+    <div class="modal-header"><h3>Novo Usuário</h3><button class="btn-icon" onclick="gClose('mUs')">&times;</button></div>
+    <div class="form-group"><label class="form-label required">Login</label><input type="text" id="mUsL" class="form-control" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label required">Senha</label><input type="password" id="mUsS" class="form-control" autocomplete="new-password"></div>
+    <div class="form-group"><label class="form-label required">Papel</label><select id="mUsP" class="form-control"><option value="viveiro">Viveiro</option><option value="gerente">Gerente</option><option value="diretoria">Diretoria (somente leitura)</option></select></div>
+    <div class="form-group"><label class="form-label required">Nome</label><input type="text" id="mUsN" class="form-control"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="gClose('mUs')">Cancelar</button><button class="btn btn-primary" onclick="gSaveUs()">Criar</button></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mWA"><div class="modal" style="max-width:780px;">
+    <div class="modal-header"><h3>📋 Colar Entregas do WhatsApp</h3><button class="btn-icon" onclick="gClose('mWA')">&times;</button></div>
+    <p class="text-muted mb-3">Cole a mensagem recebida (ex.: "Edivam 6.000 bro ent=29/06/26") e clique em Analisar. Confira/corrija cada linha antes de registrar.</p>
+    <div class="form-group">
+      <textarea id="waTexto" class="form-control" rows="8" style="resize:vertical;font-family:monospace;font-size:12px;" placeholder="Cole aqui o texto do WhatsApp..."></textarea>
+    </div>
+    <button class="btn btn-secondary" onclick="gAnalisarWA()" style="margin-bottom:14px;">🔍 Analisar Texto</button>
+    <div id="waPreviewWrap" class="hidden"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="gClose('mWA')">Cancelar</button><button class="btn btn-primary" id="waBtnSalvar" onclick="gSalvarWA()">Registrar</button></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mHP"><div class="modal" style="max-width:700px;">
+    <div class="modal-header"><h3 id="mHPT">Histórico do Parceiro</h3><button class="btn-icon" onclick="gClose('mHP')">&times;</button></div>
+    <div id="mHPC" class="table-wrap" style="max-height:420px;overflow-y:auto;"></div>
+  </div></div>
+
+  <div class="modal-overlay" id="mIA"><div class="modal" style="max-width:560px;">
+    <div class="modal-header"><h3>🤖 Perguntar à IA</h3><div style="display:flex;gap:4px;align-items:center;"><button class="btn-icon" onclick="gAbrirConfigIA()" title="Configurar chave da API">⚙</button><button class="btn-icon" onclick="gClose('mIA')">&times;</button></div></div>
+    <div id="iaConfigWrap" class="hidden" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+      <label class="form-label">Chave da API (Groq)</label>
+      <div style="display:flex;gap:8px;">
+        <input type="password" id="iaApiKey" class="form-control" placeholder="gsk_..." onkeydown="if(event.key==='Enter'){event.preventDefault();gSalvarChaveIA();}">
+        <button class="btn btn-secondary btn-sm" onclick="gSalvarChaveIA()" style="flex-shrink:0;">Salvar</button>
+      </div>
+      <p class="text-muted" style="margin-top:6px;">Fica salva só neste navegador (localStorage) — nunca é enviada pro servidor do sistema.</p>
+    </div>
+    <p class="text-muted mb-3">Pergunte sobre plantios e colheitas previstas (ex.: "quantos kg a Fazenda Oásis vai entregar no próximo mês?").</p>
+    <div id="iaMensagens" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="iaPergunta" class="form-control" placeholder="Digite sua pergunta..." onkeydown="if(event.key==='Enter'){event.preventDefault();gPerguntarIA();}">
+      <button class="btn btn-primary" id="iaBtnPerguntar" onclick="gPerguntarIA()" style="flex-shrink:0;">Perguntar</button>
+    </div>
+  </div></div>
+`; }
+
+// injeta modais no body após render
+function _injectModais() {
+  if (!document.getElementById('mTr')) {
+    const d = document.createElement('div');
+    d.innerHTML = _gModais();
+    document.body.appendChild(d);
+    document.addEventListener('click', e => { if (e.target.classList.contains('modal-overlay')) gClose(e.target.id); });
+  }
+}
+</script>
+<script>
+function gTab(aba) {
+  ['dashboard','parceiros','transplantios','colheitas','admin'].forEach(t => {
+    document.getElementById('aba_' + t).classList.toggle('hidden', t !== aba);
+    const tab = document.getElementById('tab_' + t);
+    if (tab) tab.classList.toggle('active', t === aba);
+  });
+  if (aba === 'admin')          gLoadAdmin();
+  if (aba === 'transplantios')  gLoadTr();
+  if (aba === 'colheitas')      gLoadCo();
+  if (aba === 'parceiros' && Gerente.dados) gRenderPainel(Gerente.dados.painelParceiros);
+}
+
+function gLoad() {
+  showLoading(true);
+  Promise.all([gs('getDashboard', App.token, Gerente.filtro), gs('listarVariedades', App.token).catch(() => [])])
+    .then(([d, variedades]) => {
+      showLoading(false); d.variedades = variedades; Gerente.dados = d; gFiltros(d); gDash(d); _injectModais();
+      if (!Gerente.prdCarregado) { Gerente.prdCarregado = true; gLoadPRD(); }
+    })
+    .catch(e => { showLoading(false); toast('Erro: ' + e.message, 'error'); });
+}
+
+function gFiltro() {
+  Gerente.filtro.periodo    = document.getElementById('gFP').value;
+  Gerente.filtro.id_parceiro = document.getElementById('gFPa').value;
+  Gerente.filtro.id_cultura  = document.getElementById('gFCu').value;
+  gLoad();
+}
+
+function gFiltros(d) {
+  const sp = document.getElementById('gFPa'), sc = document.getElementById('gFCu');
+  const pp = sp.value, pc = sc.value;
+  sp.innerHTML = '<option value="">Todos</option>';
+  sc.innerHTML = '<option value="">Todas</option>';
+  (d.parceiros || []).forEach(p => { const o = document.createElement('option'); o.value = p.id_parceiro; o.textContent = p.nome_fazenda; sp.appendChild(o); });
+  (d.culturas  || []).forEach(c => { const o = document.createElement('option'); o.value = c.id_cultura;  o.textContent = c.nome_exibicao;  sc.appendChild(o); });
+  if (pp) sp.value = pp; if (pc) sc.value = pc;
+}
+
+function gDash(d) {
+  const r = d.resumo;
+  document.getElementById('sc_tr').textContent  = r.total_transplantios;
+  document.getElementById('sc_unp').textContent = fmtNum(r.unidades_previstas);
+  document.getElementById('sc_une').textContent = fmtNum(r.unidades_entregues);
+  document.getElementById('sc_pcu').textContent = r.pct_unidades + '%';
+  document.getElementById('sc_kp').textContent  = fmtKg(r.kg_previsto);
+  document.getElementById('sc_ke').textContent  = fmtKg(r.kg_entregue);
+  document.getElementById('sc_pck').textContent = r.pct_kg + '%';
+  document.getElementById('sc_pr').textContent  = r.colheitas_proximas;
+
+  if (Gerente.cP) Gerente.cP.destroy();
+  const cp = document.getElementById('cPer');
+  if (cp && d.graficoPeriodo.length)
+    Gerente.cP = new Chart(cp, { type:'bar', data:{ labels:d.graficoPeriodo.map(x=>x.label), datasets:[{ label:'Mudas', data:d.graficoPeriodo.map(x=>x.unidades), backgroundColor:'#22c55e', borderRadius:5, borderSkipped:false }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:10},color:'#94a3b8'},grid:{display:false}}, y:{ticks:{font:{size:10},color:'#94a3b8'},grid:{color:'#f1f5f9'}} }}});
+
+  if (Gerente.cK) Gerente.cK.destroy();
+  const ck = document.getElementById('cKg');
+  if (ck)
+    Gerente.cK = new Chart(ck, { type:'doughnut', data:{ labels:['KG Entregue','Não entregue'], datasets:[{ data:[d.graficoKg.entregue, Math.max(0, d.graficoKg.previsto - d.graficoKg.entregue)], backgroundColor:['#16a34a','#e2e8f0'], borderWidth:0 }]}, options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{legend:{position:'bottom', labels:{font:{size:10},padding:12}}}}});
+
+  const tb = document.getElementById('tProx');
+  if (!d.proximasColheitas.length) { tb.innerHTML = '<tr><td colspan="7" class="text-muted text-center" style="padding:16px;">Nenhuma colheita prevista.</td></tr>'; }
+  else tb.innerHTML = d.proximasColheitas.slice(0,20).map(r => {
+    const rem = r.dias_restantes;
+    const cor = rem < 0 ? 'vermelho' : rem <= 15 ? 'vermelho' : rem <= 30 ? 'amarelo' : 'verde';
+    const txt = rem < 0 ? `${Math.abs(rem)}d atraso` : rem === 0 ? 'Hoje!' : `${rem}d`;
+    return `<tr><td><strong>${r.nome_parceiro}</strong></td><td>${r.nome_cultura}</td><td>${fmtNum(r.quantidade_unidades)}</td><td>${fmtKg(r.kg_previsto)}</td><td>${fmtDate(r.data_prevista_colheita)}</td><td><span class="badge badge-${cor}">${txt}</span></td><td>${_leitor() ? '--' : `<button class="btn btn-secondary btn-sm" onclick="gQCo('${r.id_parceiro}','${r.id_cultura}')">+ Colheita</button>`}</td></tr>`;
+  }).join('');
+
+  gRenderPainel(d.painelParceiros);
+}
+
+function gRenderPainel(lista) {
+  const el = document.getElementById('gPainel'); if (!el || !lista) return;
+  if (!lista.length) { el.innerHTML = '<p class="text-muted">Nenhum parceiro.</p>'; return; }
+  el.innerHTML = lista.map(p => {
+    const barraC   = p.cor === 'verde' ? '#16a34a' : p.cor === 'amarelo' ? '#ca8a04' : '#dc2626';
+    const pct      = p.pct_entregue;
+    const barra    = pct !== null ? `<div class="progress mt-2" title="${pct}% KG entregue"><div class="progress-bar" style="width:${Math.min(pct,100)}%;background:${barraC}"></div></div>` : '';
+    const rowKg    = `<div class="parceiro-info">KG: ${fmtKg(p.kg_entregue)} / ${fmtKg(p.kg_previsto)} <span class="badge badge-${p.cor}" style="font-size:9px;">${p.pct_kg !== null ? p.pct_kg+'%' : '--'}</span></div>`;
+    const rowUn    = p.unidades_entregues > 0
+      ? `<div class="parceiro-info">Mudas: ${fmtNum(p.unidades_entregues)} / ${fmtNum(p.unidades_previstas)} <span class="badge badge-cinza" style="font-size:9px;">${p.pct_unidades !== null ? p.pct_unidades+'%' : '--'}</span></div>`
+      : `<div class="parceiro-info">Mudas previstas: ${fmtNum(p.unidades_previstas)}</div>`;
+    const rowMedia = p.media_gr_por_unidade
+      ? `<div class="parceiro-info" style="color:#0d5c3a;font-weight:700;">⚖ ${p.media_gr_por_unidade} g/unidade</div>`
+      : `<div class="parceiro-info" style="color:#94a3b8;font-size:10px;">⚖ gr/un não definido</div>`;
+    const pJson    = JSON.stringify(p).replace(/'/g, "\\'");
+    return `<div class="parceiro-card parceiro-${p.cor}" onclick="gHist('${p.id_parceiro}','${p.nome_fazenda.replace(/'/g,"\\'")}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="parceiro-nome">${p.nome_fazenda}</div>
+            ${_leitor() ? '' : `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();gOpenPaEdit(${pJson.replace(/"/g,'&quot;')})" style="padding:2px 7px;font-size:10px;" title="Editar parceiro">✎</button>`}
+          </div>
+          <div class="parceiro-info">${p.responsavel || ''} · ${p.culturas || '--'}</div>
+          <div class="parceiro-info">${p.total_transplantios} transplantio(s)</div>
+          ${rowKg}${rowUn}${rowMedia}
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+          <div class="parceiro-pct pct-${p.cor}">${pct !== null ? pct + '%' : '--'}</div>
+          <div style="font-size:9px;color:#94a3b8;margin-top:2px;">KG entregue</div>
+        </div>
+      </div>${barra}
+    </div>`;
+  }).join('');
+}
+</script>
+<script>
+const DIAS_SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+const CORES_VARIEDADE = ['#16a34a', '#d97706', '#2563eb', '#dc2626', '#7c3aed', '#0891b2'];
+
+function gLoadTr() {
+  gs('listarTransplantios', App.token).then(lista => {
+    Gerente._trTodos = lista;
+    const selPa = document.getElementById('trFPa');
+    if (selPa && selPa.options.length <= 1) {
+      const parceiros = (Gerente.dados && Gerente.dados.parceiros || []).slice().sort((a,b) => a.nome_fazenda.localeCompare(b.nome_fazenda));
+      parceiros.forEach(p => { const o = document.createElement('option'); o.value = p.nome_fazenda; o.textContent = p.nome_fazenda; selPa.appendChild(o); });
+    }
+    gTrFiltrar();
+  });
+}
+
+function gTrLimparFiltro() {
+  document.getElementById('trFDe').value = '';
+  document.getElementById('trFAte').value = '';
+  document.getElementById('trFPa').value = '';
+  gTrFiltrar();
+}
+
+// Mostra/oculta os rótulos dos eixos (e a legenda do gráfico Parceiro×Variedade) nos
+// gráficos do Painel de Plantios — útil pra "limpar" a visão em telas/apresentações.
+function gToggleRotulos() {
+  const oculto = localStorage.getItem('spg_tr_rotulos_ocultos') !== '1';
+  localStorage.setItem('spg_tr_rotulos_ocultos', oculto ? '1' : '0');
+  _sincronizarBotaoRotulos();
+  ['cTrMudasParceiro', 'cTrKgParceiro', 'cTrVariedades', 'cTrLinha', 'cTrColheitaCal', 'cTrParceiroVariedade'].forEach(id => {
+    const chart = Gerente[id];
+    if (!chart || !chart.options.plugins.datalabels) return;
+    chart.options.plugins.datalabels.display = !oculto;
+    chart.update();
+  });
+}
+
+function _sincronizarBotaoRotulos() {
+  const btnRot = document.getElementById('trBtnRotulos');
+  if (!btnRot) return;
+  const oculto = localStorage.getItem('spg_tr_rotulos_ocultos') === '1';
+  btnRot.textContent = oculto ? 'Mostrar Rótulos' : 'Ocultar Rótulos';
+}
+
+function gTrFiltrar() {
+  const de = document.getElementById('trFDe').value;
+  const ate = document.getElementById('trFAte').value;
+  const parceiro = document.getElementById('trFPa').value;
+  Gerente._trFiltro = { de, ate, parceiro };
+
+  const filtrado = (Gerente._trTodos || []).filter(t => {
+    if (de && t.data_transplantio < de) return false;
+    if (ate && t.data_transplantio > ate) return false;
+    if (parceiro && t.nome_parceiro !== parceiro) return false;
+    return true;
+  });
+
+  _renderTrDashboard(filtrado);
+
+  const tb = document.getElementById('tTr');
+  if (!tb) return;
+  if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="9" class="text-muted text-center" style="padding:16px;">Nenhum registro no filtro selecionado.</td></tr>'; return; }
+  tb.innerHTML = filtrado.slice().sort((a,b) => b.data_transplantio.localeCompare(a.data_transplantio)).map(r =>
+    `<tr><td>${fmtDate(r.data_transplantio)}</td><td><strong>${r.nome_parceiro}</strong></td><td>${r.nome_cultura}</td><td>${r.nome_variedade || '--'}</td><td>${fmtNum(r.quantidade_unidades)}</td><td>${fmtKg(r.kg_previsto)}</td><td>${fmtDate(r.data_prevista_colheita)}</td><td>${r.lote || '--'}</td>
+    <td style="white-space:nowrap;">${_leitor() ? '--' : `<button class="btn btn-secondary btn-sm" onclick='gOpenTr(${JSON.stringify(r)})'>✎</button> <button class="btn btn-danger btn-sm" onclick="gDelTr('${r.id_transplantio}')">&times;</button>`}</td></tr>`
+  ).join('');
+}
+
+function _trDestruirGraficos() {
+  ['cTrMudasParceiro','cTrKgParceiro','cTrVariedades','cTrLinha','cTrColheitaCal','cTrParceiroVariedade'].forEach(v => {
+    if (Gerente[v]) { Gerente[v].destroy(); Gerente[v] = null; }
+  });
+}
+
+function _inicioSemana(dataISO) {
+  const d = new Date(dataISO + 'T00:00:00');
+  const dia = d.getDay();
+  const diff = (dia === 0 ? -6 : 1) - dia;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function _renderTrDashboard(lista) {
+  const statsEl = document.getElementById('trStats');
+  if (!statsEl) return;
+
+  if (!lista.length) {
+    statsEl.innerHTML = '<div style="grid-column:1/-1;padding:20px;" class="text-muted text-center">Nenhum plantio no período/filtro selecionado.</div>';
+    _trDestruirGraficos();
+    document.getElementById('trVariedadesLegenda').innerHTML = '';
+    document.getElementById('trTabPlantios').innerHTML = '';
+    document.getElementById('trHeatmapWrap').innerHTML = '';
+    document.getElementById('trResumoGeral').innerHTML = '';
+    document.getElementById('trAtualizadoEm').textContent = '';
+    return;
+  }
+
+  const hojeISO = new Date().toISOString().slice(0, 10);
+
+  const totalMudas = lista.reduce((s, t) => s + Number(t.quantidade_unidades || 0), 0);
+  const totalKg    = lista.reduce((s, t) => s + Number(t.kg_previsto || 0), 0);
+  const parceirosUnicos  = new Set(lista.map(t => t.nome_parceiro));
+  const variedadesUnicas = new Set(lista.filter(t => t.nome_variedade).map(t => t.nome_variedade));
+  const proximaColheita = lista.map(t => t.data_prevista_colheita).filter(d => d && d >= hojeISO).sort()[0];
+
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#dcfce7;">🌱</div><div class="stat-value stat-verde">${fmtNum(totalMudas)}</div><div class="stat-label">Total de Mudas</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#dbeafe;">📦</div><div class="stat-value stat-azul">${fmtKg(totalKg)}</div><div class="stat-label">Produção Prevista</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#ede9fe;">👥</div><div class="stat-value" style="color:#6d28d9;">${parceirosUnicos.size}</div><div class="stat-label">Parceiros</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#fef3c7;">🧬</div><div class="stat-value stat-ambar">${variedadesUnicas.size}</div><div class="stat-label">Variedades</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#ccfbf1;">📅</div><div class="stat-value" style="color:#0f766e;font-size:16px;">${proximaColheita ? fmtDate(proximaColheita) : '--'}</div><div class="stat-label">Próxima Colheita</div></div>
+  `;
+  const _rotOculto = localStorage.getItem('spg_tr_rotulos_ocultos') === '1';
+
+  // ── Mudas por Parceiro ──────────────────────────────────
+  const porParceiroMudas = {};
+  lista.forEach(t => { porParceiroMudas[t.nome_parceiro] = (porParceiroMudas[t.nome_parceiro] || 0) + Number(t.quantidade_unidades || 0); });
+  const rankMudas = Object.entries(porParceiroMudas).sort((a, b) => b[1] - a[1]);
+
+  if (Gerente.cTrMudasParceiro) Gerente.cTrMudasParceiro.destroy();
+  const elMP = document.getElementById('cTrMudasParceiro');
+  if (elMP) Gerente.cTrMudasParceiro = new Chart(elMP, {
+    type: 'bar',
+    data: { labels: rankMudas.map(r => r[0]), datasets: [{ label:'Mudas', data: rankMudas.map(r => r[1]), backgroundColor:'#16a34a', borderRadius:4, borderSkipped:false, maxBarThickness:20 }] },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOculto, anchor:'end', align:'end', color:'#475569', font:{ size:10, weight:'700' }, formatter:v => fmtNum(v) } },
+      layout:{ padding:{ right:36 } },
+      scales:{ x:{ ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } }, y:{ ticks:{ font:{size:10}, color:'#64748b' }, grid:{ display:false } } } }
+  });
+
+  // ── Produção Prevista (kg) por Parceiro ─────────────────
+  const porParceiroKg = {};
+  lista.forEach(t => { porParceiroKg[t.nome_parceiro] = (porParceiroKg[t.nome_parceiro] || 0) + Number(t.kg_previsto || 0); });
+  const rankKg = Object.entries(porParceiroKg).sort((a, b) => b[1] - a[1]);
+
+  if (Gerente.cTrKgParceiro) Gerente.cTrKgParceiro.destroy();
+  const elKP = document.getElementById('cTrKgParceiro');
+  if (elKP) Gerente.cTrKgParceiro = new Chart(elKP, {
+    type: 'bar',
+    data: { labels: rankKg.map(r => r[0]), datasets: [{ label:'KG Previsto', data: rankKg.map(r => +r[1].toFixed(1)), backgroundColor:'#16a34a', borderRadius:4, borderSkipped:false, maxBarThickness:20 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOculto, anchor:'end', align:'top', color:'#475569', font:{ size:9, weight:'700' }, formatter:v => fmtNum(v) } },
+      layout:{ padding:{ top:20 } },
+      scales:{ x:{ ticks:{ font:{size:9}, color:'#94a3b8', maxRotation:0, autoSkip:true }, grid:{ display:false } }, y:{ ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  // ── Participação das Variedades ──────────────────────────
+  const porVariedade = {};
+  lista.forEach(t => { const key = t.nome_variedade || 'Sem variedade'; porVariedade[key] = (porVariedade[key] || 0) + Number(t.quantidade_unidades || 0); });
+  const varEntries = Object.entries(porVariedade).sort((a, b) => b[1] - a[1]);
+  const totalVar = varEntries.reduce((s, v) => s + v[1], 0);
+
+  if (Gerente.cTrVariedades) Gerente.cTrVariedades.destroy();
+  const elV = document.getElementById('cTrVariedades');
+  if (elV) Gerente.cTrVariedades = new Chart(elV, {
+    type: 'doughnut',
+    data: { labels: varEntries.map(v => v[0]), datasets: [{ data: varEntries.map(v => v[1]), backgroundColor: varEntries.map((_, i) => CORES_VARIEDADE[i % CORES_VARIEDADE.length]), borderWidth:2, borderColor:'#fff' }] },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOculto, color:'#fff', font:{ size:11, weight:'700' },
+          formatter:v => totalVar > 0 ? Math.round(v / totalVar * 100) + '%' : '' } } }
+  });
+  document.getElementById('trVariedadesLegenda').innerHTML = varEntries.map((v, i) => `
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${CORES_VARIEDADE[i % CORES_VARIEDADE.length]};display:inline-block;flex-shrink:0;"></span>
+      <span style="font-weight:700;">${v[0]}</span>
+      <span style="color:#94a3b8;margin-left:auto;">${fmtNum(v[1])} (${totalVar > 0 ? Math.round(v[1] / totalVar * 100) : 0}%)</span>
+    </div>`).join('');
+
+  // ── Linha do Tempo dos Plantios ───────────────────────────
+  const porData = {};
+  lista.forEach(t => { const key = String(t.data_transplantio).slice(0, 10); porData[key] = (porData[key] || 0) + Number(t.quantidade_unidades || 0); });
+  const datasOrdenadas = Object.keys(porData).sort();
+
+  if (Gerente.cTrLinha) Gerente.cTrLinha.destroy();
+  const elLin = document.getElementById('cTrLinha');
+  if (elLin) Gerente.cTrLinha = new Chart(elLin, {
+    type: 'line',
+    data: { labels: datasOrdenadas.map(fmtDate), datasets: [{ label:'Mudas plantadas', data: datasOrdenadas.map(k => porData[k]), borderColor:'#16a34a', backgroundColor:'rgba(22,163,74,.12)', borderWidth:2, fill:true, tension:.3, pointRadius:3 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOculto, align:'top', color:'#475569', font:{ size:9, weight:'700' }, formatter:v => fmtNum(v) } },
+      layout:{ padding:{ top:18 } },
+      scales:{ x:{ ticks:{ font:{size:9}, color:'#94a3b8', maxRotation:0, autoSkip:true }, grid:{ display:false } }, y:{ ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  // ── Calendário de Colheita (kg previsto) ─────────────────
+  const porDataColheita = {};
+  lista.forEach(t => { if (!t.data_prevista_colheita) return; porDataColheita[t.data_prevista_colheita] = (porDataColheita[t.data_prevista_colheita] || 0) + Number(t.kg_previsto || 0); });
+  const datasColheita = Object.keys(porDataColheita).sort();
+
+  if (Gerente.cTrColheitaCal) Gerente.cTrColheitaCal.destroy();
+  const elCal = document.getElementById('cTrColheitaCal');
+  if (elCal) Gerente.cTrColheitaCal = new Chart(elCal, {
+    type: 'bar',
+    data: { labels: datasColheita.map(fmtDate), datasets: [{ label:'KG Previsto', data: datasColheita.map(d => +porDataColheita[d].toFixed(1)), backgroundColor:'#d97706', borderRadius:4, borderSkipped:false, maxBarThickness:20 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOculto, anchor:'end', align:'top', color:'#475569', font:{ size:9, weight:'700' }, formatter:v => fmtNum(v) } },
+      layout:{ padding:{ top:18 } },
+      scales:{ x:{ ticks:{ font:{size:9}, color:'#94a3b8', maxRotation:0, autoSkip:true }, grid:{ display:false } }, y:{ ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  // ── Parceiro × Variedade (mudas) ─────────────────────────
+  const parceirosOrdenados = rankMudas.map(r => r[0]);
+  const variedadesOrdenadas = varEntries.map(v => v[0]);
+  const matrizPV = {};
+  lista.forEach(t => {
+    const key = t.nome_variedade || 'Sem variedade';
+    matrizPV[t.nome_parceiro] = matrizPV[t.nome_parceiro] || {};
+    matrizPV[t.nome_parceiro][key] = (matrizPV[t.nome_parceiro][key] || 0) + Number(t.quantidade_unidades || 0);
+  });
+
+  if (Gerente.cTrParceiroVariedade) Gerente.cTrParceiroVariedade.destroy();
+  const elPV = document.getElementById('cTrParceiroVariedade');
+  if (elPV) Gerente.cTrParceiroVariedade = new Chart(elPV, {
+    type: 'bar',
+    data: {
+      labels: parceirosOrdenados,
+      datasets: variedadesOrdenadas.map((v, i) => ({
+        label: v, data: parceirosOrdenados.map(p => (matrizPV[p] && matrizPV[p][v]) || 0),
+        backgroundColor: CORES_VARIEDADE[i % CORES_VARIEDADE.length], borderRadius:3, borderSkipped:false, maxBarThickness:16
+      }))
+    },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ font:{size:10}, boxWidth:10, padding:10 } },
+        datalabels:{ display:!_rotOculto, anchor:'center', align:'center', color:'#fff', font:{ size:10, weight:'700' },
+          formatter:v => v > 0 ? fmtNum(v) : '' } },
+      scales:{ x:{ stacked:true, ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } }, y:{ stacked:true, ticks:{ font:{size:10}, color:'#64748b' }, grid:{ display:false } } } }
+  });
+  _sincronizarBotaoRotulos();
+
+  // ── Tabela: Plantios por Parceiro ────────────────────────
+  const contagemPorParceiro = {};
+  lista.forEach(t => { contagemPorParceiro[t.nome_parceiro] = (contagemPorParceiro[t.nome_parceiro] || 0) + 1; });
+  const listaContagem = Object.entries(contagemPorParceiro).sort((a, b) => b[1] - a[1]);
+  const totalPlantios = listaContagem.reduce((s, c) => s + c[1], 0);
+  document.getElementById('trTabPlantios').innerHTML = listaContagem.map(([p, q]) => `<tr><td>${p}</td><td>${q}</td></tr>`).join('') +
+    `<tr style="font-weight:800;border-top:2px solid #e2e8f0;"><td>Total</td><td>${totalPlantios}</td></tr>`;
+
+  // ── Heatmap de Colheitas (kg previsto, por semana) ───────
+  document.getElementById('trHeatmapWrap').innerHTML = _renderTrHeatmap(lista);
+
+  // ── Resumo Geral ──────────────────────────────────────────
+  const porDiaSemana = {};
+  lista.forEach(t => {
+    const d = new Date(String(t.data_transplantio).slice(0, 10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return;
+    const nome = DIAS_SEMANA[d.getDay()];
+    porDiaSemana[nome] = (porDiaSemana[nome] || 0) + Number(t.quantidade_unidades || 0);
+  });
+  const topDia = Object.entries(porDiaSemana).sort((a, b) => b[1] - a[1])[0];
+  const f = Gerente._trFiltro || {};
+  const periodoTxt = (f.de || f.ate) ? `${f.de ? fmtDate(f.de) : '...'} – ${f.ate ? fmtDate(f.ate) : '...'}` : 'Todos os períodos';
+
+  document.getElementById('trResumoGeral').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>📅 Período selecionado:</span><strong>${periodoTxt}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>🌱 Total de mudas plantadas:</span><strong>${fmtNum(totalMudas)}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>🥦 Produção prevista total:</span><strong>${fmtKg(totalKg)}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>👥 Número de parceiros:</span><strong>${parceirosUnicos.size}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>🌾 Variedades cultivadas:</span><strong>${variedadesUnicas.size}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>📅 Próxima colheita:</span><strong>${proximaColheita ? fmtDate(proximaColheita) : '--'}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>📈 Dia que mais planta:</span><strong>${topDia ? topDia[0] : '--'}</strong></div>
+    </div>
+  `;
+
+  document.getElementById('trAtualizadoEm').textContent = 'Última atualização: ' + new Date().toLocaleString('pt-BR');
+}
+
+function _renderTrHeatmap(lista) {
+  const datasColh = lista.map(t => t.data_prevista_colheita).filter(Boolean).sort();
+  if (!datasColh.length) return '<p class="text-muted text-center" style="padding:12px;">Sem colheitas previstas.</p>';
+
+  const inicioMin = _inicioSemana(datasColh[0]);
+  const fimMax = new Date(datasColh[datasColh.length - 1] + 'T00:00:00');
+  if (isNaN(inicioMin.getTime()) || isNaN(fimMax.getTime())) return '<p class="text-muted text-center" style="padding:12px;">Data de colheita inválida em algum registro.</p>';
+
+  const MAX_SEMANAS = 60; // ~14 meses — trava de segurança: evita travar o navegador se alguma data estiver errada/muito distante
+  const semanas = [];
+  let cursor = new Date(inicioMin);
+  while (cursor <= fimMax && semanas.length < MAX_SEMANAS) {
+    const fimSemana = new Date(cursor); fimSemana.setDate(fimSemana.getDate() + 6);
+    semanas.push({ inicio: new Date(cursor), fim: fimSemana });
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  if (cursor <= fimMax) {
+    return '<p class="text-muted text-center" style="padding:12px;">Período das colheitas previstas é muito longo pra exibir como heatmap (mais de 14 meses) — use o filtro de data pra reduzir o intervalo.</p>';
+  }
+
+  const matrizHeat = {};
+  lista.forEach(t => {
+    if (!t.data_prevista_colheita) return;
+    const d = new Date(t.data_prevista_colheita + 'T00:00:00');
+    const idx = semanas.findIndex(s => d >= s.inicio && d <= s.fim);
+    if (idx === -1) return;
+    matrizHeat[t.nome_parceiro] = matrizHeat[t.nome_parceiro] || Array(semanas.length).fill(0);
+    matrizHeat[t.nome_parceiro][idx] += Number(t.kg_previsto || 0);
+  });
+
+  const maxVal = Math.max(1, ...Object.values(matrizHeat).flat());
+  const parceirosHeat = Object.keys(matrizHeat).sort((a, b) => {
+    const totalA = matrizHeat[a].reduce((s, v) => s + v, 0), totalB = matrizHeat[b].reduce((s, v) => s + v, 0);
+    return totalB - totalA;
+  });
+  const fmtSemana = s => `${String(s.inicio.getDate()).padStart(2,'0')}/${String(s.inicio.getMonth()+1).padStart(2,'0')} - ${String(s.fim.getDate()).padStart(2,'0')}/${String(s.fim.getMonth()+1).padStart(2,'0')}`;
+
+  let html = `<table><thead><tr><th>Parceiro</th>${semanas.map(s => `<th>${fmtSemana(s)}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
+  html += parceirosHeat.map(p => {
+    const linha = matrizHeat[p];
+    const total = linha.reduce((s, v) => s + v, 0);
+    const celulas = linha.map(v => {
+      const intensidade = v / maxVal;
+      const bg = v > 0 ? `rgba(22,163,74,${(0.12 + intensidade * 0.68).toFixed(2)})` : 'transparent';
+      const cor = intensidade > 0.55 ? '#fff' : '#1e293b';
+      return `<td style="background:${bg};color:${cor};font-weight:${v > 0 ? 700 : 400};text-align:center;">${v > 0 ? fmtNum(Math.round(v)) : '0'}</td>`;
+    }).join('');
+    return `<tr><td><strong>${p}</strong></td>${celulas}<td style="font-weight:800;">${fmtNum(Math.round(total))}</td></tr>`;
+  }).join('') + '</tbody></table>';
+  return html;
+}
+
+function gLoadCo() {
+  gs('listarColheitas', App.token).then(lista => {
+    const tb = document.getElementById('tCo'); if (!tb) return;
+    if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="text-muted text-center" style="padding:16px;">Nenhuma.</td></tr>'; return; }
+    lista.sort((a,b) => (b.data_colheita_real||'').localeCompare(a.data_colheita_real||''));
+    tb.innerHTML = lista.map(c =>
+      `<tr><td>${fmtDate(c.data_colheita_real)}</td><td><strong>${c.nome_parceiro||'--'}</strong></td><td>${c.nome_cultura||'--'}</td><td><strong>${fmtKg(c.kg_entregue)}</strong></td><td>${c.unidades_entregues ? fmtNum(c.unidades_entregues) : '--'}</td><td>${c.observacoes || '--'}</td><td>${_leitor() ? '' : `<button class="btn btn-danger btn-sm" onclick="gDelCo('${c.id_colheita}')">&times;</button>`}</td></tr>`
+    ).join('');
+  });
+}
+
+function gLoadAdmin() {
+  Promise.all([gs('listarUsuarios', App.token), gs('listarCulturas', App.token), gs('listarVariedades', App.token).catch(() => [])]).then(([users, cults, variedades]) => {
+    const eu = document.getElementById('gListUs');
+    if (eu) eu.innerHTML = users.map(u =>
+      `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+        <div><strong style="font-size:13px;">${u.nome}</strong><div style="font-size:11px;color:#64748b;">${u.usuario} · <span class="badge badge-${u.papel === 'gerente' ? 'azul' : u.papel === 'diretoria' ? 'amarelo' : 'verde'}">${u.papel}</span></div></div>
+        <div style="display:flex;gap:4px;"><button class="btn btn-secondary btn-sm" onclick="gResetPwd('${u.id_usuario}','${u.nome.replace(/'/g,"\\'")}')">🔑</button>
+        <button class="btn btn-${u.ativo ? 'danger' : 'secondary'} btn-sm" onclick="gToggleU('${u.id_usuario}',${!u.ativo})">${u.ativo ? 'Desativar' : 'Ativar'}</button></div>
+      </div>`
+    ).join('');
+    const ec = document.getElementById('gListCu');
+    if (ec) ec.innerHTML = cults.map(c =>
+      `<div style="padding:10px 0;border-bottom:1px solid #f1f5f9;">
+        <div style="display:flex;justify-content:space-between;align-items:center;"><strong>${c.nome_exibicao}</strong><span class="badge badge-cinza">${c.id_cultura}</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+          <div><label class="form-label">Dias padrão</label><input type="number" class="form-control" value="${c.dias_padrao_colheita}" id="dias_${c.id_cultura}" style="padding:6px;"></div>
+          <div><label class="form-label">KG/muda</label><input type="number" class="form-control" value="${c.kg_estimado_por_unidade}" id="kg_${c.id_cultura}" step="0.01" style="padding:6px;"></div>
+        </div>
+        <button class="btn btn-primary btn-sm mt-2" onclick="gSaveCu('${c.id_cultura}')">Salvar</button>
+      </div>`
+    ).join('');
+    const ev = document.getElementById('gListVa');
+    if (ev) ev.innerHTML = !variedades.length
+      ? '<p class="text-muted" style="padding:8px 0;">Nenhuma variedade cadastrada.</p>'
+      : variedades.map(v =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+          <div><strong style="font-size:13px;">${v.nome_exibicao}</strong> <span class="badge badge-cinza">${v.id_variedade}</span></div>
+          <button class="btn btn-secondary btn-sm" onclick="gRenomearVariedade('${v.id_variedade}','${v.nome_exibicao.replace(/'/g,"\\'")}')">✎</button>
+        </div>`
+      ).join('');
+  });
+}
+
+function gNovaVariedade() {
+  const nome = prompt('Nome da nova variedade (ex.: Master, Legacy):');
+  if (!nome || !nome.trim()) return;
+  gs('criarVariedade', App.token, { nome_exibicao: nome.trim() })
+    .then(() => { toast('Variedade adicionada!', 'success'); gLoadAdmin(); gLoad(); })
+    .catch(e => toast('Erro: ' + e.message, 'error'));
+}
+
+function gRenomearVariedade(id, nomeAtual) {
+  const nome = prompt('Novo nome da variedade:', nomeAtual);
+  if (!nome || !nome.trim() || nome.trim() === nomeAtual) return;
+  gs('atualizarVariedade', App.token, id, { nome_exibicao: nome.trim() })
+    .then(() => { toast('Variedade atualizada!', 'success'); gLoadAdmin(); gLoad(); })
+    .catch(e => toast('Erro: ' + e.message, 'error'));
+}
+
+function gOpenTr(r) {
+  Gerente.editTrId = r ? r.id_transplantio : null;
+  Gerente._mediaManual = !!(r && r.media_gr_fonte === 'manual');
+  const d = Gerente.dados;
+  const sp = document.getElementById('mTrP'), sc = document.getElementById('mTrC'), sv = document.getElementById('mTrV');
+  sp.innerHTML = '<option value="">Selecione...</option>'; sc.innerHTML = '<option value="">Selecione...</option>'; sv.innerHTML = '<option value="">Nenhuma</option>';
+  (d && d.parceiros || []).forEach(p => { const o = document.createElement('option'); o.value = p.id_parceiro; o.textContent = p.nome_fazenda; sp.appendChild(o); });
+  (d && d.culturas  || []).forEach(c => { const o = document.createElement('option'); o.value = c.id_cultura;  o.textContent = c.nome_exibicao;  sc.appendChild(o); });
+  (d && d.variedades|| []).forEach(v => { const o = document.createElement('option'); o.value = v.id_variedade; o.textContent = v.nome_exibicao; sv.appendChild(o); });
+  if (r) {
+    document.getElementById('mTrH').textContent = '✎ Editar'; document.getElementById('mTrBtn').textContent = 'Salvar';
+    sp.value = r.id_parceiro; sc.value = r.id_cultura; sv.value = r.id_variedade || '';
+    document.getElementById('mTrD').value  = String(r.data_transplantio).slice(0,10);
+    document.getElementById('mTrQ').value  = fmtNum(r.quantidade_unidades);
+    document.getElementById('mTrA').value  = r.area_m2 || ''; document.getElementById('mTrL').value  = r.lote || '';
+    document.getElementById('mTrMG').value = r.media_gr_por_unidade || '';
+    document.getElementById('mTrMGFonte').textContent = _fonteMediaTexto(r.media_gr_fonte);
+    document.getElementById('mTrDC').value = String(r.data_prevista_colheita).slice(0,10);
+    document.getElementById('mTrKG').value = r.kg_previsto || ''; document.getElementById('mTrOB').value = r.observacoes || '';
+    gCP(); // popula o cache local (Gerente._prevTr) pra Qtd/Média recalcularem sem ida ao servidor
+  } else {
+    document.getElementById('mTrH').textContent = 'Registrar Transplantio'; document.getElementById('mTrBtn').textContent = 'Registrar';
+    ['mTrP','mTrC','mTrV','mTrQ','mTrA','mTrL','mTrMG','mTrOB','mTrKG'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mTrMGFonte').textContent = '';
+    document.getElementById('mTrD').value = new Date().toISOString().slice(0,10); document.getElementById('mTrDC').value = '';
+  }
+  document.getElementById('mTr').classList.add('show');
+}
+
+function _fonteMediaTexto(fonte) {
+  if (fonte === 'prd_mensal') return '📊 Calculado do histórico real de entregas (PRD) daquele mês';
+  if (fonte === 'prd_geral')  return '📊 Calculado do histórico real de entregas (PRD), qualquer mês';
+  if (fonte === 'parceiro')   return '📊 Calculado da média geral cadastrada do parceiro';
+  if (fonte === 'manual')     return '✎ Informado manualmente';
+  return '';
+}
+
+// gCP() chama o servidor (calcula data prevista + busca a média estimada do PRD) só quando
+// parceiro/cultura/data mudam — quantidade e média digitados NÃO precisam de ida ao servidor,
+// então ficam a cargo de gAtualizarKG() (puramente local, instantâneo).
+function gCP() {
+  const ic = document.getElementById('mTrC').value, d = document.getElementById('mTrD').value, p = document.getElementById('mTrPrv');
+  const id_parceiro = document.getElementById('mTrP').value;
+  const mediaGrEl   = document.getElementById('mTrMG');
+
+  if (!ic || !d) { p.classList.add('hidden'); Gerente._prevTr = null; return; }
+  gs('calcularPrevisao', App.token, ic, d, 0, id_parceiro).then(res => {
+    Gerente._prevTr = res;
+    document.getElementById('mTrDC').value = res.data_prevista_colheita;
+    // atualiza com a média estimada (histórico do mês de colheita, ou média geral do parceiro) —
+    // a menos que o usuário tenha digitado a média manualmente, nesse caso não mexe
+    if (!Gerente._mediaManual && res.media_gr_estimada) {
+      mediaGrEl.value = res.media_gr_estimada;
+      document.getElementById('mTrMGFonte').textContent = _fonteMediaTexto(res.media_gr_fonte);
+    }
+    gAtualizarKG();
+  }).catch(() => p.classList.add('hidden'));
+}
+
+// Recalcula KG Previsto e o texto de prévia usando só o que já está na tela — sem ida ao servidor.
+function gAtualizarKG() {
+  const res = Gerente._prevTr;
+  const p = document.getElementById('mTrPrv');
+  if (!res) { p.classList.add('hidden'); return; }
+  const q = _qtdInt('mTrQ');
+  const mediaGr = Number(document.getElementById('mTrMG').value) || 0;
+  if (q) {
+    document.getElementById('mTrKG').value = mediaGr > 0
+      ? (mediaGr * q / 1000).toFixed(1)
+      : res.kg_previsto;
+  }
+  const rem = daysDiff(res.data_prevista_colheita), s = rem > 0 ? `em ${rem}d` : rem === 0 ? 'hoje!' : `${Math.abs(rem)}d atrás`;
+  const fonteTxt = res.media_gr_fonte === 'prd_mensal' ? ' (PRD do mês)' : res.media_gr_fonte === 'prd_geral' ? ' (PRD geral)' : res.media_gr_fonte === 'parceiro' ? ' (média parceiro)' : '';
+  const mediaInfo = mediaGr > 0 ? ` • ${mediaGr}g/un${fonteTxt}` : '';
+  p.textContent = `Data: ${fmtDate(res.data_prevista_colheita)} (${s}) — ${res.dias_padrao}d padrão${mediaInfo}`; p.classList.remove('hidden');
+}
+
+function gSaveTr() {
+  const dados = { id_parceiro:document.getElementById('mTrP').value, data_transplantio:document.getElementById('mTrD').value, id_cultura:document.getElementById('mTrC').value, id_variedade:document.getElementById('mTrV').value||undefined, quantidade_unidades:_qtdInt('mTrQ'), area_m2:Number(document.getElementById('mTrA').value)||0, lote:document.getElementById('mTrL').value, media_gr_por_unidade:Number(document.getElementById('mTrMG').value)||undefined, data_prevista_colheita:document.getElementById('mTrDC').value||undefined, kg_previsto:Number(document.getElementById('mTrKG').value)||undefined, observacoes:document.getElementById('mTrOB').value };
+  if (!dados.id_parceiro || !dados.data_transplantio || !dados.id_cultura || !dados.quantidade_unidades) { toast('Preencha os campos obrigatórios.','error'); return; }
+  showLoading(true);
+  const fn   = Gerente.editTrId ? 'atualizarTransplantio' : 'registrarTransplantio';
+  const args = Gerente.editTrId ? [App.token, Gerente.editTrId, dados] : [App.token, dados];
+  gs(fn, ...args).then(() => { showLoading(false); gClose('mTr'); toast(Gerente.editTrId ? 'Atualizado!' : 'Registrado!','success'); gLoad(); }).catch(e => { showLoading(false); toast('Erro: '+e.message,'error'); });
+}
+
+function gDelTr(id) { if (!confirm('Excluir este transplantio?')) return; gs('excluirTransplantio', App.token, id).then(() => { toast('Excluído.','info'); gLoad(); }).catch(e => toast(e.message,'error')); }
+
+// ── IMPORTAR TRANSPLANTIOS COLADOS DO WHATSAPP ───────────────
+function _normStr(s) { return (s || '').toString().normalize('NFD').replace(new RegExp('[̀-ͯ]', 'g'), '').toLowerCase().trim(); }
+
+function _waConverterData(d, m, y) {
+  d = d.padStart(2, '0'); m = m.padStart(2, '0');
+  if (!y) y = String(new Date().getFullYear());
+  else if (y.length === 2) y = '20' + y;
+  return `${y}-${m}-${d}`;
+}
+
+function _parseWhatsAppTexto(texto) {
+  const linhas = (texto || '').split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const resultado = [];
+  linhas.forEach(linha => {
+    if (/^total\b/i.test(linha)) return;
+    const mData = linha.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*$/);
+    if (!mData) return;
+    const dataISO = _waConverterData(mData[1], mData[2], mData[3]);
+    let resto = linha.slice(0, mData.index).trim();
+    resto = resto.replace(/ent\w*\s*=?\s*$/i, '').trim();
+    const mNome = resto.match(/^([^\d]+)/);
+    if (!mNome) return;
+    const nome = mNome[1].trim();
+    const meio = resto.slice(mNome[0].length).trim();
+    const pares = [...meio.matchAll(/([\d.,]+)\s*(\p{L}+)/gu)];
+    pares.forEach(p => {
+      const qtd = parseInt(p[1].replace(/[^\d]/g, ''), 10);
+      if (qtd > 0) resultado.push({ parceiro_raw: nome, quantidade: qtd, cultura_raw: p[2], data: dataISO });
+    });
+  });
+  return resultado;
+}
+
+function _apelidosDe(p) {
+  return (p.apelidos || '').split(',').map(a => _normStr(a)).filter(Boolean);
+}
+
+function _matchParceiro(nomeRaw) {
+  const alvo  = _normStr(nomeRaw);
+  const lista = (Gerente.dados && Gerente.dados.parceiros) || [];
+  let m = lista.find(p => _normStr(p.nome_fazenda) === alvo || _apelidosDe(p).includes(alvo));
+  if (!m) m = lista.find(p => _normStr(p.nome_fazenda).startsWith(alvo) || alvo.startsWith(_normStr(p.nome_fazenda)));
+  if (!m) m = lista.find(p => _normStr(p.nome_fazenda).includes(alvo) || alvo.includes(_normStr(p.nome_fazenda)));
+  return m ? m.id_parceiro : '';
+}
+
+function _matchCultura(tagRaw) {
+  const alvo  = _normStr(tagRaw);
+  const lista = (Gerente.dados && Gerente.dados.culturas) || [];
+  let m = lista.find(c => _normStr(c.nome_exibicao) === alvo);
+  if (!m) m = lista.find(c => _normStr(c.nome_exibicao).includes(alvo));
+  if (!m && alvo === 'bro') m = lista.find(c => _normStr(c.nome_exibicao).includes('broc'));
+  return m ? m.id_cultura : '';
+}
+
+// na lista do WhatsApp toda entrega é de brócolis — "bro"/"master" identificam a variedade, não a cultura
+function _culturaBrocolisPadrao() {
+  const lista = (Gerente.dados && Gerente.dados.culturas) || [];
+  const m = lista.find(c => _normStr(c.nome_exibicao).includes('broc'));
+  return m ? m.id_cultura : '';
+}
+
+function _matchVariedade(tagRaw) {
+  const alvo  = _normStr(tagRaw);
+  const lista = (Gerente.dados && Gerente.dados.variedades) || [];
+  let m = lista.find(v => _normStr(v.nome_exibicao) === alvo);
+  if (!m) m = lista.find(v => _normStr(v.nome_exibicao).includes(alvo) || alvo.includes(_normStr(v.nome_exibicao)));
+  return m ? m.id_variedade : '';
+}
+
+function gOpenWA() {
+  Gerente.waRows = [];
+  document.getElementById('waTexto').value = '';
+  const wrap = document.getElementById('waPreviewWrap');
+  wrap.innerHTML = ''; wrap.classList.add('hidden');
+  document.getElementById('waBtnSalvar').textContent = 'Registrar';
+  document.getElementById('mWA').classList.add('show');
+}
+
+function gAnalisarWA() {
+  const parsed = _parseWhatsAppTexto(document.getElementById('waTexto').value);
+  if (!parsed.length) { toast('Não encontrei nenhuma linha reconhecível (nome + quantidade + data).', 'error'); return; }
+  const rows = parsed.map(p => ({
+    incluir: true,
+    parceiro_raw: p.parceiro_raw,
+    cultura_raw:  p.cultura_raw,
+    id_parceiro:  _matchParceiro(p.parceiro_raw),
+    id_cultura:   _matchCultura(p.cultura_raw) || _culturaBrocolisPadrao(),
+    id_variedade: _matchVariedade(p.cultura_raw),
+    quantidade:   p.quantidade,
+    data:         p.data
+  }));
+  Gerente.waRows = rows;
+  gRenderWA();
+}
+
+function gRenderWA() {
+  const wrap      = document.getElementById('waPreviewWrap');
+  const parceiros = (Gerente.dados && Gerente.dados.parceiros) || [];
+  const culturas  = (Gerente.dados && Gerente.dados.culturas) || [];
+  const variedades = (Gerente.dados && Gerente.dados.variedades) || [];
+  const rows      = Gerente.waRows || [];
+  const semParceiro = rows.filter(r => !r.id_parceiro).length;
+  const semCultura  = rows.filter(r => !r.id_cultura).length;
+  const avisos = (semParceiro || semCultura)
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:600;margin-bottom:10px;">⚠ Confira as linhas em vermelho: ${semParceiro} sem parceiro / ${semCultura} sem cultura reconhecidos.</div>`
+    : '';
+
+  const linhas = rows.map((r, i) => {
+    const faltando = !r.id_parceiro || !r.id_cultura;
+    return `<tr style="${faltando ? 'background:#fef2f2;' : ''}">
+      <td style="text-align:center;"><input type="checkbox" ${r.incluir ? 'checked' : ''} onchange="gWACampo(${i},'incluir',this.checked)"></td>
+      <td><select class="form-control" style="padding:5px;font-size:11px;" onchange="gWACampo(${i},'id_parceiro',this.value)">
+        <option value="">${r.parceiro_raw} (?)</option>
+        ${parceiros.map(p => `<option value="${p.id_parceiro}" ${p.id_parceiro === r.id_parceiro ? 'selected' : ''}>${p.nome_fazenda}</option>`).join('')}
+      </select></td>
+      <td><select class="form-control" style="padding:5px;font-size:11px;" onchange="gWACampo(${i},'id_cultura',this.value)">
+        <option value="">${r.cultura_raw} (?)</option>
+        ${culturas.map(c => `<option value="${c.id_cultura}" ${c.id_cultura === r.id_cultura ? 'selected' : ''}>${c.nome_exibicao}</option>`).join('')}
+      </select></td>
+      <td><select class="form-control" style="padding:5px;font-size:11px;" onchange="gWACampo(${i},'id_variedade',this.value)">
+        <option value="">Nenhuma</option>
+        ${variedades.map(v => `<option value="${v.id_variedade}" ${v.id_variedade === r.id_variedade ? 'selected' : ''}>${v.nome_exibicao}</option>`).join('')}
+      </select></td>
+      <td><input type="text" inputmode="numeric" class="form-control" style="padding:5px;font-size:11px;width:90px;" value="${fmtNum(r.quantidade)}" oninput="gWACampo(${i},'quantidade',this.value)" onblur="this.value = fmtNum(Gerente.waRows[${i}].quantidade)"></td>
+      <td><input type="date" class="form-control" style="padding:5px;font-size:11px;" value="${r.data}" onchange="gWACampo(${i},'data',this.value)"></td>
+      <td><button class="btn-icon" onclick="gWARemover(${i})" title="Remover">🗑</button></td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `${avisos}<div id="waResumo" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:12px;color:#15803d;font-weight:700;margin-bottom:10px;">${_waResumoHTML()}</div><div class="table-wrap"><table>
+      <thead><tr><th></th><th>Parceiro</th><th>Cultura</th><th>Variedade</th><th>Qtd</th><th>Data</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>`;
+  wrap.classList.remove('hidden');
+  document.getElementById('waBtnSalvar').textContent = `Registrar (${rows.filter(r => r.incluir).length})`;
+}
+
+function _waResumoHTML() {
+  const rows = (Gerente.waRows || []).filter(r => r.incluir);
+  const parceirosUnicos = new Set(rows.map(r => r.id_parceiro || ('_raw_' + _normStr(r.parceiro_raw))));
+  const totalQtd = rows.reduce((s, r) => s + (Number(r.quantidade) || 0), 0);
+  return `📊 ${parceirosUnicos.size} parceiro(s) • ${fmtNum(totalQtd)} mudas no total`;
+}
+
+function gWACampo(i, campo, valor) {
+  if (!Gerente.waRows[i]) return;
+  Gerente.waRows[i][campo] = campo === 'quantidade' ? Number(String(valor).replace(/[^\d]/g, '')) || 0 : valor;
+  if (campo === 'id_parceiro' || campo === 'id_cultura' || campo === 'incluir') { gRenderWA(); return; }
+  const resumoEl = document.getElementById('waResumo');
+  if (resumoEl) resumoEl.innerHTML = _waResumoHTML();
+}
+
+function gWARemover(i) { Gerente.waRows.splice(i, 1); gRenderWA(); }
+
+function gSalvarWA() {
+  const linhas = (Gerente.waRows || []).filter(r => r.incluir);
+  if (!linhas.length) { toast('Nenhuma linha selecionada.', 'error'); return; }
+  const invalidas = linhas.filter(r => !r.id_parceiro || !r.id_cultura || !r.quantidade || !r.data);
+  if (invalidas.length) { toast(`${invalidas.length} linha(s) incompleta(s). Corrija parceiro/cultura/quantidade/data antes de registrar.`, 'error'); return; }
+
+  showLoading(true);
+  let ok = 0; const falhas = [];
+  linhas.reduce((p, r) => p.then(() =>
+    gs('registrarTransplantio', App.token, {
+      id_parceiro: r.id_parceiro, data_transplantio: r.data, id_cultura: r.id_cultura,
+      id_variedade: r.id_variedade || undefined,
+      quantidade_unidades: r.quantidade, observacoes: 'Importado do WhatsApp'
+    }).then(() => ok++).catch(e => falhas.push(`${r.parceiro_raw}: ${e.message}`))
+  ), Promise.resolve()).then(() => {
+    showLoading(false);
+    if (falhas.length) toast(`${ok} registrado(s), ${falhas.length} falharam — ${falhas.join('; ')}`, 'error', 7000);
+    else toast(`${ok} transplantio(s) registrado(s) com sucesso!`, 'success');
+    gClose('mWA');
+    gLoad(); gLoadTr();
+  });
+}
+</script>
+<script>
+function gOpenCo(id_parceiro, id_cultura) {
+  const d = Gerente.dados;
+  const sp = document.getElementById('mCoP'), sc = document.getElementById('mCoCu');
+  sp.innerHTML = '<option value="">Selecione...</option>';
+  sc.innerHTML = '<option value="">Selecione...</option>';
+  (d && d.parceiros || []).forEach(p => { const o = document.createElement('option'); o.value = p.id_parceiro; o.textContent = p.nome_fazenda; sp.appendChild(o); });
+  (d && d.culturas  || []).forEach(c => { const o = document.createElement('option'); o.value = c.id_cultura;  o.textContent = c.nome_exibicao;  sc.appendChild(o); });
+  if (id_parceiro) sp.value = id_parceiro;
+  if (id_cultura)  sc.value = id_cultura;
+  document.getElementById('mCoD').value = new Date().toISOString().slice(0,10);
+  ['mCoKG','mCoUn','mCoOB'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('mCo').classList.add('show');
+}
+function gQCo(id_parceiro, id_cultura) { gOpenCo(id_parceiro, id_cultura); }
+function gSaveCo() {
+  const dados = { id_parceiro:document.getElementById('mCoP').value, id_cultura:document.getElementById('mCoCu').value, data_colheita_real:document.getElementById('mCoD').value, kg_entregue:Number(document.getElementById('mCoKG').value), unidades_entregues:Number(document.getElementById('mCoUn').value)||0, observacoes:document.getElementById('mCoOB').value };
+  if (!dados.id_parceiro || !dados.id_cultura || !dados.data_colheita_real || !dados.kg_entregue) { toast('Preencha os campos obrigatórios.','error'); return; }
+  showLoading(true);
+  gs('registrarColheita', App.token, dados).then(() => { showLoading(false); gClose('mCo'); toast('Colheita registrada!','success'); gLoad(); }).catch(e => { showLoading(false); toast('Erro: '+e.message,'error'); });
+}
+function gDelCo(id) { if (!confirm('Excluir esta colheita?')) return; gs('excluirColheita', App.token, id).then(() => { toast('Excluído.','info'); gLoadCo(); gLoad(); }).catch(e => toast(e.message,'error')); }
+
+function gOpenPa() { ['mPaN','mPaR','mPaC','mPaAp'].forEach(id => document.getElementById(id).value=''); document.getElementById('mPa').classList.add('show'); }
+function gSavePa() {
+  const dados = { nome_fazenda:document.getElementById('mPaN').value, responsavel:document.getElementById('mPaR').value, contato:document.getElementById('mPaC').value, apelidos:document.getElementById('mPaAp').value };
+  if (!dados.nome_fazenda) { toast('Nome obrigatório.','error'); return; }
+  showLoading(true);
+  gs('criarParceiro', App.token, dados).then(() => { showLoading(false); gClose('mPa'); toast('Parceiro adicionado!','success'); gLoad(); }).catch(e => { showLoading(false); toast(e.message,'error'); });
+}
+function gOpenPaEdit(p) {
+  document.getElementById('mPaEId').value = p.id_parceiro;
+  document.getElementById('mPaEN').value  = p.nome_fazenda || '';
+  document.getElementById('mPaER').value  = p.responsavel  || '';
+  document.getElementById('mPaEC').value  = p.contato      || '';
+  document.getElementById('mPaEAp').value = p.apelidos     || '';
+  document.getElementById('mPaE').classList.add('show');
+}
+function gSavePaE() {
+  const id    = document.getElementById('mPaEId').value;
+  const dados = { nome_fazenda:document.getElementById('mPaEN').value, responsavel:document.getElementById('mPaER').value, contato:document.getElementById('mPaEC').value, apelidos:document.getElementById('mPaEAp').value };
+  if (!dados.nome_fazenda) { toast('Nome obrigatório.','error'); return; }
+  showLoading(true);
+  gs('atualizarParceiro', App.token, id, dados).then(() => { showLoading(false); gClose('mPaE'); toast('Parceiro atualizado!','success'); gLoad(); }).catch(e => { showLoading(false); toast(e.message,'error'); });
+}
+
+function gHist(id, nome) {
+  document.getElementById('mHPT').textContent = 'Histórico — ' + nome;
+  document.getElementById('mHPC').innerHTML = '<p class="text-muted text-center" style="padding:16px;">Carregando...</p>';
+  document.getElementById('mHP').classList.add('show');
+  gs('getHistoricoParceiro', App.token, id).then(h => {
+    const { transplantios, colheitas, resumo } = h;
+    const corKg = resumo.pct_kg === null ? 'cinza' : resumo.pct_kg >= 85 ? 'verde' : resumo.pct_kg >= 60 ? 'amarelo' : 'vermelho';
+    const corUn = resumo.pct_unidades === null ? 'cinza' : resumo.pct_unidades >= 85 ? 'verde' : resumo.pct_unidades >= 60 ? 'amarelo' : 'vermelho';
+    let html = `<div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+      <div>
+        <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:2px;">KG</div>
+        <span style="font-size:13px;font-weight:700;">${fmtKg(resumo.kg_entregue)} / ${fmtKg(resumo.kg_previsto)}</span>
+        <span class="badge badge-${corKg}" style="margin-left:6px;">${resumo.pct_kg !== null ? resumo.pct_kg+'%' : '--'}</span>
+      </div>
+      <div>
+        <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:2px;">Mudas</div>
+        <span style="font-size:13px;font-weight:700;">${fmtNum(resumo.unidades_entregues)} / ${fmtNum(resumo.unidades_previstas)}</span>
+        <span class="badge badge-${corUn}" style="margin-left:6px;">${resumo.pct_unidades !== null ? resumo.pct_unidades+'%' : '--'}</span>
+      </div>
+    </div>`;
+
+    html += `<div style="padding:10px 16px 4px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;">Transplantios</div>`;
+    if (!transplantios.length) {
+      html += '<p class="text-muted" style="padding:8px 16px;">Nenhum transplantio.</p>';
+    } else {
+      html += `<table><thead><tr><th>Data Transplantio</th><th>Cultura</th><th>Mudas</th><th>KG prev.</th><th>Col. prevista</th><th>Status</th></tr></thead><tbody>` +
+        transplantios.map(r => {
+          const rem = r.dias_restantes;
+          const rt  = rem < 0 ? `${Math.abs(rem)}d atraso` : rem === 0 ? 'Hoje!' : `${rem}d`;
+          const rc  = rem < 0 ? 'vermelho' : rem <= 15 ? 'amarelo' : 'cinza';
+          return `<tr><td>${fmtDate(r.data_transplantio)}</td><td>${r.nome_cultura}</td><td>${fmtNum(r.quantidade_unidades)}</td><td>${fmtKg(r.kg_previsto)}</td><td>${fmtDate(r.data_prevista_colheita)}</td><td><span class="badge badge-${rc}">${rt}</span></td></tr>`;
+        }).join('') + `</tbody></table>`;
+    }
+
+    html += `<div style="padding:10px 16px 4px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #e2e8f0;margin-top:8px;">Entregas Registradas</div>`;
+    if (!colheitas.length) {
+      html += '<p class="text-muted" style="padding:8px 16px;">Nenhuma entrega registrada ainda.</p>';
+    } else {
+      html += `<table><thead><tr><th>Data Entrega</th><th>Cultura</th><th>KG Entregue</th><th>Unidades</th><th>Obs.</th></tr></thead><tbody>` +
+        colheitas.map(c =>
+          `<tr><td>${fmtDate(c.data_colheita_real)}</td><td>${c.nome_cultura}</td><td><strong>${fmtKg(c.kg_entregue)}</strong></td><td>${c.unidades_entregues ? fmtNum(c.unidades_entregues) : '--'}</td><td>${c.observacoes||'--'}</td></tr>`
+        ).join('') + `</tbody></table>`;
+    }
+
+    document.getElementById('mHPC').innerHTML = html;
+  }).catch(e => { document.getElementById('mHPC').innerHTML = `<p class="text-muted text-center">Erro: ${e.message}</p>`; });
+}
+
+function gOpenUs() { ['mUsL','mUsS','mUsN'].forEach(id => document.getElementById(id).value=''); document.getElementById('mUsP').value='viveiro'; document.getElementById('mUs').classList.add('show'); }
+function gSaveUs() {
+  const dados = { usuario:document.getElementById('mUsL').value, senha:document.getElementById('mUsS').value, papel:document.getElementById('mUsP').value, nome:document.getElementById('mUsN').value };
+  if (!dados.usuario || !dados.senha || !dados.nome) { toast('Preencha todos os campos.','error'); return; }
+  showLoading(true);
+  gs('criarUsuario', App.token, dados).then(() => { showLoading(false); gClose('mUs'); toast('Usuário criado!','success'); gLoadAdmin(); }).catch(e => { showLoading(false); toast(e.message,'error'); });
+}
+function gToggleU(id, ativo) { gs('alterarStatusUsuario', App.token, id, ativo).then(() => { toast('Atualizado.','info'); gLoadAdmin(); }).catch(e => toast(e.message,'error')); }
+function gResetPwd(id, nome) {
+  const n = prompt(`Nova senha para "${nome}":`); if (!n || n.length < 3) return;
+  gs('redefinirSenhaUsuario', App.token, id, n).then(() => toast('Senha redefinida!','success')).catch(e => toast(e.message,'error'));
+}
+function gSaveCu(id) {
+  const dados = { dias_padrao_colheita:Number(document.getElementById('dias_'+id).value), kg_estimado_por_unidade:Number(document.getElementById('kg_'+id).value) };
+  gs('atualizarCultura', App.token, id, dados).then(() => { toast('Cultura atualizada!','success'); gLoad(); }).catch(e => toast(e.message,'error'));
+}
+function gClose(id) { document.getElementById(id).classList.remove('show'); }
+
+// ── ASSISTENTE IA ─────────────────────────────────────────────
+// A chave da API da Groq fica só no localStorage deste navegador — nunca é enviada
+// ao Apps Script nem salva no código. O Apps Script só devolve o resumo dos dados
+// (obterContextoIA); quem chama a Groq de fato é o próprio navegador (fetch direto).
+const IA_MODELO = 'llama-3.3-70b-versatile';
+
+function gOpenIA() {
+  document.getElementById('mIA').classList.add('show');
+  document.getElementById('iaConfigWrap').classList.toggle('hidden', !!localStorage.getItem('spg_groq_key'));
+  document.getElementById('iaPergunta').focus();
+}
+
+function gAbrirConfigIA() {
+  const wrap = document.getElementById('iaConfigWrap');
+  const estavaEscondido = wrap.classList.contains('hidden');
+  wrap.classList.toggle('hidden');
+  if (estavaEscondido) document.getElementById('iaApiKey').focus();
+}
+
+function gSalvarChaveIA() {
+  const key = document.getElementById('iaApiKey').value.trim();
+  if (!key) { toast('Digite a chave.', 'error'); return; }
+  localStorage.setItem('spg_groq_key', key);
+  document.getElementById('iaApiKey').value = '';
+  document.getElementById('iaConfigWrap').classList.add('hidden');
+  toast('Chave salva neste navegador!', 'success');
+}
+
+function _iaAdicionarMensagem(texto, tipo) {
+  const wrap = document.getElementById('iaMensagens');
+  const el = document.createElement('div');
+  const estiloUser = 'align-self:flex-end;background:var(--verde);color:#fff;';
+  const estiloIA   = 'align-self:flex-start;background:#f1f5f9;color:#1e293b;';
+  const estiloErro  = 'align-self:flex-start;background:#fee2e2;color:#b91c1c;';
+  el.style.cssText = `max-width:85%;padding:10px 14px;border-radius:14px;font-size:13px;white-space:pre-wrap;line-height:1.4;${
+    tipo === 'user' ? estiloUser : tipo === 'erro' ? estiloErro : estiloIA}`;
+  el.textContent = texto;
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return el;
+}
+
+function gPerguntarIA() {
+  const input = document.getElementById('iaPergunta');
+  const pergunta = input.value.trim();
+  if (!pergunta) return;
+  const key = localStorage.getItem('spg_groq_key');
+  if (!key) { gAbrirConfigIA(); toast('Configure a chave da API primeiro.', 'error'); return; }
+  const btn = document.getElementById('iaBtnPerguntar');
+
+  _iaAdicionarMensagem(pergunta, 'user');
+  input.value = '';
+  const msgCarregando = _iaAdicionarMensagem('Pensando...', 'ia');
+  btn.disabled = true;
+
+  gs('obterContextoIA', App.token)
+    .then(ctx => fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: IA_MODELO,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content:
+            'Você é o assistente do sistema SPG de controle de transplantio e entrega de brócolis. ' +
+            'Responda em português, de forma direta e objetiva, usando SOMENTE os dados fornecidos abaixo. ' +
+            'Os dados têm duas seções: "HISTÓRICO REAL DE ENTREGAS" (o que já foi efetivamente entregue e pesado, ' +
+            'por parceiro/mês/ano, com kg, unidades, média de g/unidade e número de entregas) e ' +
+            '"COLHEITAS PREVISTAS" (plantios feitos que ainda vão ser colhidos, é previsão, não entrega real). ' +
+            'Nunca confunda uma com a outra ao responder. ' +
+            '"Média da cabeça", "média por cabeça" ou "média por muda" significa a média de g/unidade (peso por muda/unidade entregue). ' +
+            'Se a pergunta mencionar um mês sem dizer o ano, use o ano mais recente disponível pra esse mês nos dados, ' +
+            'a menos que existam vários anos e fique claro que deveria somar todos — nesse caso, mostre o total e também o detalhamento por ano. ' +
+            'Quando a pergunta pedir uma soma, período ou "próximo mês", calcule com cuidado usando as datas ' +
+            'informadas (a data de hoje está no topo dos dados). ' +
+            'Se não houver dados suficientes para responder com confiança, diga isso claramente em vez de inventar. ' +
+            'Formate TODO número igual ou maior que 1000 no padrão brasileiro, com ponto separando milhar (ex.: 9.968, 29.548, 1.200.000) — nunca escreva "9968" sem separador. ' +
+            'Essa formatação vale pra QUALQUER número que aparecer na sua resposta, inclusive números que você copiar diretamente dos dados abaixo (eles estão sem separador nos dados brutos — é sua obrigação formatá-los ao escrever a resposta, mesmo em contas intermediárias como "6408 + 3560 = 9968"). ' +
+            'Use vírgula para casas decimais quando precisar (ex.: 1.234,5 kg). Isso vale pra kg, unidades e qualquer outro número, mas não pra anos (ex.: 2026 continua sem ponto).\n\n' +
+            'DADOS:\n' + ctx.contexto
+          },
+          { role: 'user', content: pergunta }
+        ]
+      })
+    }))
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error((data.error && data.error.message) || ('Erro na API da Groq (' + r.status + ').'));
+      msgCarregando.textContent = data.choices[0].message.content;
+    })
+    .catch(e => {
+      msgCarregando.textContent = 'Erro: ' + e.message;
+      msgCarregando.style.background = '#fee2e2'; msgCarregando.style.color = '#b91c1c';
+    })
+    .finally(() => { btn.disabled = false; document.getElementById('iaMensagens').scrollTop = 999999; input.focus(); });
+}
+</script>
+<script>
+// ── PRD: HISTÓRICO DE ENTREGAS ───────────────────────────────
+
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function gLoadPRD() {
+  const ano      = (document.getElementById('prdFAno') || {}).value || '';
+  const mes      = (document.getElementById('prdFMes') || {}).value || '';
+  const parceiro = (document.getElementById('prdFPa')  || {}).value || '';
+  const classe   = (document.getElementById('prdFCl')  || {}).value || '';
+
+  const stats = document.getElementById('prdStats');
+  if (stats) stats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:#94a3b8;font-size:12px;">Carregando dados PRD...</div>';
+
+  Promise.all([
+    gsPRD('getEntregasDashboard', App.token, { ano, mes, parceiro, classe }),
+    gsPRD('getProjecaoSemanal',   App.token)
+  ])
+    .then(([d, proj]) => gDashPRD(d, proj))
+    .catch(e => {
+      if (stats) stats.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:#dc2626;font-size:12px;">Erro PRD: ${e.message}</div>`;
+    });
+}
+
+function gDashPRD(d, proj) {
+  // ── atualiza filtros ────────────────────────────────────────
+  ['prdFAno','prdFMes','prdFPa','prdFCl'].forEach((id, i) => {
+    const el = document.getElementById(id); if (!el) return;
+    const curr = el.value;
+    const lista = [d.anos, d.meses, d.parceiros, d.classes][i] || [];
+    el.innerHTML = `<option value="">${['Todos','Todos','Todos','Todas'][i]}</option>`;
+    lista.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = id === 'prdFMes' ? (MESES_PT[v - 1] || v) : v;
+      el.appendChild(o);
+    });
+    if (curr) el.value = curr;
+  });
+
+  // ── stats ───────────────────────────────────────────────────
+  const r = d.resumo;
+  const stats = document.getElementById('prdStats');
+  if (stats) stats.innerHTML = `
+    <div class="stat-card"><div class="stat-value stat-verde">${fmtKg(r.total_kg)}</div><div class="stat-label">Total KG</div></div>
+    <div class="stat-card"><div class="stat-value stat-azul">${fmtNum(r.total_unidades)}</div><div class="stat-label">Unidades</div></div>
+    <div class="stat-card"><div class="stat-value stat-ambar">${fmtKg(r.media_kg_dia)}</div><div class="stat-label">Média KG/Dia</div></div>
+    <div class="stat-card"><div class="stat-value stat-ambar">${fmtKg(r.media_kg_semana)}</div><div class="stat-label">Média KG/Semana</div></div>
+    <div class="stat-card"><div class="stat-value stat-verde">${r.media_g_un ? r.media_g_un + ' g' : '--'}</div><div class="stat-label">Média g/Unidade</div></div>
+    <div class="stat-card"><div class="stat-value stat-azul">${fmtNum(r.dias_com_entrega)}</div><div class="stat-label">Dias c/ Entrega</div></div>
+    <div class="stat-card"><div class="stat-value stat-verde">${r.total_parceiros}</div><div class="stat-label">Parceiros</div></div>
+  `;
+
+  // ── gráfico: KG por dia (últimos 90 dias) ──────────────────
+  if (Gerente.cPRDDia) Gerente.cPRDDia.destroy();
+  const cd = document.getElementById('cPRDDia');
+  if (cd) {
+    const dias = d.porDia.slice(-90);
+    const lbl  = document.getElementById('prdDiaLabel');
+    if (lbl) lbl.textContent = dias.length < d.porDia.length ? `(últimos ${dias.length} dias)` : `(${dias.length} dias)`;
+    // média móvel 7 dias
+    const media7 = dias.map((_, i) => {
+      const slice = dias.slice(Math.max(0, i - 6), i + 1);
+      return +(slice.reduce((s, x) => s + x.peso_kg, 0) / slice.length).toFixed(1);
+    });
+    Gerente.cPRDDia = new Chart(cd, {
+      type: 'line',
+      data: {
+        labels: dias.map(x => fmtDate(x.data)),
+        datasets: [
+          {
+            label: 'KG/dia',
+            data: dias.map(x => x.peso_kg),
+            borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.08)',
+            borderWidth: 1.5, pointRadius: 1.5, fill: true, tension: 0.2, order: 2
+          },
+          {
+            label: 'Média 7d',
+            data: media7,
+            borderColor: '#f59e0b', backgroundColor: 'transparent',
+            borderWidth: 2, pointRadius: 0, fill: false, tension: 0.4, borderDash: [4, 3], order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 10 } } },
+        scales: {
+          x: { ticks: { font: { size: 9 }, color: '#94a3b8', maxTicksLimit: 12 }, grid: { display: false } },
+          y: { ticks: { font: { size: 10 }, color: '#94a3b8' }, grid: { color: '#f1f5f9' } }
+        }
+      }
+    });
+  }
+
+  // ── gráfico: KG por semana + projeção ─────────────────────
+  if (Gerente.cPRDSem) Gerente.cPRDSem.destroy();
+  const cs = document.getElementById('cPRDSem');
+  if (cs) {
+    // usa dados combinados (proj) se disponível, senão apenas histórico
+    const semData = proj && proj.length
+      ? proj.slice(-40)
+      : d.porSemana.slice(-24).map(s => ({ label: s.label, historico: s.peso_kg, projecao: 0 }));
+
+    // linha de média histórica
+    const histVals  = semData.map(x => x.historico || 0).filter(v => v > 0);
+    const mediaHist = histVals.length ? +(histVals.reduce((s, v) => s + v, 0) / histVals.length).toFixed(1) : 0;
+
+    Gerente.cPRDSem = new Chart(cs, {
+      type: 'bar',
+      data: {
+        labels: semData.map(x => x.label),
+        datasets: [
+          {
+            label: 'KG Entregue',
+            data: semData.map(x => x.historico || 0),
+            backgroundColor: '#16a34a', borderRadius: 3, order: 2
+          },
+          {
+            label: 'KG Projetado (Transplantios)',
+            data: semData.map(x => x.projecao || 0),
+            backgroundColor: 'rgba(234,179,8,.65)', borderRadius: 3, order: 3
+          },
+          {
+            label: `Média histórica (${fmtKg(mediaHist)}/sem)`,
+            data: semData.map(() => mediaHist),
+            type: 'line', borderColor: '#dc2626', borderWidth: 2,
+            pointRadius: 0, fill: false, borderDash: [5, 4], order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 10 } } },
+        scales: {
+          x: { ticks: { font: { size: 9 }, color: '#94a3b8', maxRotation: 45 }, grid: { display: false } },
+          y: { ticks: { font: { size: 10 }, color: '#94a3b8' }, grid: { color: '#f1f5f9' } }
+        }
+      }
+    });
+  }
+
+  // ── tabela por parceiro (só se filtro "Todos") ─────────────
+  const card = document.getElementById('prdPaCard');
+  const tb   = document.getElementById('prdTPa');
+  if (card && tb && d.porParceiro.length > 1) {
+    card.style.display = '';
+    tb.innerHTML = d.porParceiro.map(p =>
+      `<tr><td><strong>${p.parceiro}</strong></td><td>${fmtKg(p.peso_kg)}</td><td>${fmtNum(p.unidades)}</td><td>${p.media_g_un ? p.media_g_un + ' g' : '--'}</td></tr>`
+    ).join('');
+  } else if (card) {
+    card.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>
