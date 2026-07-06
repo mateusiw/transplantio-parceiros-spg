@@ -741,7 +741,7 @@ function renderGerente(root) {
             </div></div>
           </div>
           <div class="card"><div class="card-header"><h3>📅 Próximas Colheitas</h3></div>
-            <div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>Cultura</th><th>Mudas</th><th>KG prev.</th><th>Col. prev.</th><th>Restam</th><th>% Entregue</th></tr></thead><tbody id="tProx"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>Cultura</th><th>Variedade</th><th>Mudas</th><th>KG prev.</th><th>Col. prev.</th><th>Restam</th><th>% Entregue</th></tr></thead><tbody id="tProx"></tbody></table></div>
             <div class="text-center" style="padding:10px;" id="dashProxToggleWrap"><button class="btn btn-secondary btn-sm" onclick="gToggleProx()" id="dashProxToggle">Ver todas as próximas colheitas ›</button></div>
           </div>
         </div>
@@ -1198,7 +1198,7 @@ function _renderDashProx() {
   const lista = Gerente._dashProximas || [];
   const LIMITE = 5;
   const exibidas = Gerente._dashProxTodas ? lista.slice(0, 30) : lista.slice(0, LIMITE);
-  if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="text-muted text-center" style="padding:16px;">Nenhuma colheita prevista.</td></tr>'; }
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="8" class="text-muted text-center" style="padding:16px;">Nenhuma colheita prevista.</td></tr>'; }
   else tb.innerHTML = exibidas.map(r => {
     const rem = r.dias_restantes;
     const cor = rem < 0 ? 'vermelho' : rem <= 15 ? 'vermelho' : rem <= 30 ? 'amarelo' : 'verde';
@@ -1206,7 +1206,7 @@ function _renderDashProx() {
     const pct = r.pct_entregue_lote;
     const corPct = pct === null || pct === undefined ? 'cinza' : pct >= 100 ? 'verde' : pct > 0 ? 'amarelo' : 'cinza';
     const txtPct = pct === null || pct === undefined ? '--' : pct >= 100 ? '✓ Entregue' : pct + '%';
-    return `<tr><td><strong>${r.nome_parceiro}</strong></td><td>${r.nome_cultura}</td><td>${fmtNum(r.quantidade_unidades)}</td><td>${fmtKg(r.kg_previsto)}</td><td>${fmtDate(r.data_prevista_colheita)}</td><td><span class="badge badge-${cor}">${txt}</span></td><td><span class="badge badge-${corPct}">${txtPct}</span></td></tr>`;
+    return `<tr><td><strong>${r.nome_parceiro}</strong></td><td>${r.nome_cultura}</td><td>${r.nome_variedade || '--'}</td><td>${fmtNum(r.quantidade_unidades)}</td><td>${fmtKg(r.kg_previsto)}</td><td>${fmtDate(r.data_prevista_colheita)}</td><td><span class="badge badge-${cor}">${txt}</span></td><td><span class="badge badge-${corPct}">${txtPct}</span></td></tr>`;
   }).join('');
 
   const btn = document.getElementById('dashProxToggle');
