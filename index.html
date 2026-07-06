@@ -48,7 +48,8 @@
     .btn-danger:hover{background:#b91c1c;}
     .btn-sm{padding:5px 10px;font-size:11px;border-radius:8px;}
     .btn-icon{padding:6px;border-radius:8px;background:transparent;border:none;cursor:pointer;color:#64748b;}
-    .card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;max-width:100%;}
+    .card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;max-width:100%;min-width:0;}
+    canvas{max-width:100%;}
     .card-header{padding:12px 20px;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px;}
     .card-header h3{margin:0;font-size:13px;font-weight:700;color:#334155;flex:1 1 auto;min-width:0;overflow-wrap:break-word;word-break:break-word;}
     .card-header > button, .card-header > a{flex-shrink:0;}
@@ -65,7 +66,7 @@
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;}
     .grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;}
     .dash-layout{display:grid;grid-template-columns:2fr 1fr;gap:12px;align-items:start;}
-    .dash-col{display:flex;flex-direction:column;gap:12px;}
+    .dash-col{display:flex;flex-direction:column;gap:12px;min-width:0;}
     @media(max-width:900px){.dash-layout{grid-template-columns:1fr;}}
     .tabbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 16px;display:flex;overflow-x:auto;}
     .tab-btn{display:inline-flex;align-items:center;gap:6px;padding:12px 16px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;color:#94a3b8;transition:all .15s;flex-shrink:0;}
@@ -1096,6 +1097,19 @@ function gTab(aba) {
     if (Gerente._prodUltimo) gDashProdutividade(Gerente._prodUltimo.d, Gerente._prodUltimo.dListaParceiros);
     else gLoadProdutividade();
   }
+  // gráficos de abas pré-carregadas em segundo plano (ex.: Relatórios, via _prdPreCarregado)
+  // nascem com o container ainda escondido (display:none) — o Chart.js não mede a largura
+  // certa nesse momento. Redesenha (resize) tudo que já existe agora que a aba está visível
+  // de verdade, garantindo que o gráfico bata com a largura real da tela.
+  requestAnimationFrame(_resizeGraficosVisiveis);
+}
+
+function _resizeGraficosVisiveis() {
+  Object.values(Gerente).forEach(v => {
+    if (v && typeof v.resize === 'function' && v.canvas) {
+      try { v.resize(); } catch (e) { /* chart pode já ter sido destruído — ignora */ }
+    }
+  });
 }
 
 function gLoad() {
