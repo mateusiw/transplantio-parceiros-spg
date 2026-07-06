@@ -666,15 +666,16 @@ function vEditarRegistro(r) {
 const Gerente = { dados: null, filtro: { periodo:'mes', id_parceiro:'', id_cultura:'' }, editTrId: null, cP: null, cK: null, cPRDDia: null, cPRDSem: null, cTrLinha: null,
   cPaRank: null, cPaMetaEnt: null, cPaGauge: null, cPaEvo: null, cPaDist: null, cPaMedia: null, cPaTransp: null, cPaMudasPrev: null, _paColheitasTodos: null,
   cDashGauge: null, cDashCultura: null, _dashTrTodos: null, _dashProxTodas: false,
-  cPRDDist: null, cPRDMediaGauge: null, cPRDEvoMedia: null, _prdParceirosTodos: false, _prdUltimo: null, _prdClasseInicializada: false, _prdPreCarregado: false };
+  cPRDDist: null, cPRDMediaGauge: null, cPRDEvoMedia: null, _prdParceirosTodos: false, _prdUltimo: null, _prdClasseInicializada: false, _prdPreCarregado: false,
+  cProdUnid: null, cProdKg: null, cProdMedia: null, _prodUltimo: null, _prodModo: 'dia', _prodClasseInicializada: false };
 
 function _leitor() { return App.papel === 'diretoria'; }
 
 function renderGerente(root) {
   const somenteLeitura = _leitor();
   const abasVisiveis = somenteLeitura
-    ? ['dashboard','parceiros','transplantios','relatorios']
-    : ['dashboard','parceiros','transplantios','relatorios','admin'];
+    ? ['dashboard','parceiros','transplantios','relatorios','produtividade']
+    : ['dashboard','parceiros','transplantios','relatorios','produtividade','admin'];
   root.innerHTML = `
   <nav class="navbar">
     <div class="navbar-brand">
@@ -688,8 +689,8 @@ function renderGerente(root) {
   </nav>
   <div class="tabbar">
     ${abasVisiveis.map(t => {
-      const ic = {dashboard:'📊',parceiros:'👥',transplantios:'🌱',relatorios:'📦',admin:'⚙'}[t];
-      const lb = {dashboard:'Dashboard',parceiros:'Parceiros',transplantios:'Transplantios',relatorios:'Relatórios',admin:'Admin'}[t];
+      const ic = {dashboard:'📊',parceiros:'👥',transplantios:'🌱',relatorios:'📦',produtividade:'🥦',admin:'⚙'}[t];
+      const lb = {dashboard:'Dashboard',parceiros:'Parceiros',transplantios:'Transplantios',relatorios:'Relatórios',produtividade:'Produtividade',admin:'Admin'}[t];
       return `<button id="tab_${t}" class="tab-btn" onclick="gTab('${t}')"><span class="tab-icon">${ic}</span><span class="tab-label">${lb}</span></button>`;
     }).join('')}
   </div>
@@ -872,6 +873,41 @@ function renderGerente(root) {
       </div>
     </div>
 
+    <div id="aba_produtividade" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <h2 style="margin:0;font-size:16px;font-weight:800;">🥦 Produtividade — Entregas por Período</h2>
+        <button class="btn btn-sm" style="background:#dbeafe;color:#1d4ed8;font-weight:700;" onclick="gLoadProdutividade()">↻ Atualizar</button>
+      </div>
+
+      <div class="card mb-3"><div class="card-body" style="padding:12px 16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div><label class="form-label">Ano</label><select id="prodFAno" class="form-control" style="min-width:90px;" onchange="gLoadProdutividade()"><option value="">Todos</option></select></div>
+          <div><label class="form-label">Mês</label><select id="prodFMes" class="form-control" style="min-width:120px;" onchange="gLoadProdutividade()"><option value="">Todos</option></select></div>
+          <div><label class="form-label">Parceiro</label><select id="prodFPa" class="form-control" style="min-width:150px;" onchange="gLoadProdutividade()"><option value="">Todos</option></select></div>
+          <div><label class="form-label">Classe</label><select id="prodFCl" class="form-control" style="min-width:130px;" onchange="gLoadProdutividade()"><option value="">Todas</option></select></div>
+          <div>
+            <label class="form-label">Visão</label>
+            <div style="display:flex;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;">
+              <button class="btn btn-sm" id="prodBtnDia" style="border-radius:0;" onclick="gProdModo('dia')">Diário</button>
+              <button class="btn btn-sm" id="prodBtnSemana" style="border-radius:0;" onclick="gProdModo('semana')">Semanal</button>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="gProdLimparFiltro()">Limpar filtro</button>
+          <button class="btn btn-secondary btn-sm" id="prodBtnRotulos" onclick="gToggleRotulosProd()">Ocultar Rótulos</button>
+        </div>
+      </div></div>
+
+      <div class="stats-grid mb-3" id="prodStats">
+        <div class="stat-card"><div class="stat-value stat-azul" style="font-size:14px;">—</div><div class="stat-label">Carregando...</div></div>
+      </div>
+
+      <div class="grid-auto mb-3">
+        <div class="card"><div class="card-header"><h3>📦 Unidades Entregues <span id="prodUnidLabel" style="font-size:10px;color:#94a3b8;font-weight:400;"></span></h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:260px;"><canvas id="cProdUnid"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><h3>🚚 KG Entregues <span id="prodKgLabel" style="font-size:10px;color:#94a3b8;font-weight:400;"></span></h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:260px;"><canvas id="cProdKg"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><h3>🥦 Média do Tamanho da Cabeça (g/unidade) <span id="prodMediaLabel" style="font-size:10px;color:#94a3b8;font-weight:400;"></span></h3></div><div class="card-body" style="padding:12px;"><div style="position:relative;height:260px;"><canvas id="cProdMedia"></canvas></div></div></div>
+      </div>
+    </div>
+
     <div id="aba_admin" class="hidden">
       <div class="grid-auto">
         <div class="card"><div class="card-header"><h3>👤 Usuários</h3><button class="btn btn-primary btn-sm" onclick="gOpenUs()">+ Novo</button></div><div id="gListUs" class="card-body" style="padding:8px 16px;"></div></div>
@@ -1008,7 +1044,7 @@ function _injectModais() {
 </script>
 <script>
 function gTab(aba) {
-  ['dashboard','parceiros','transplantios','relatorios','admin'].forEach(t => {
+  ['dashboard','parceiros','transplantios','relatorios','produtividade','admin'].forEach(t => {
     document.getElementById('aba_' + t).classList.toggle('hidden', t !== aba);
     const tab = document.getElementById('tab_' + t);
     if (tab) tab.classList.toggle('active', t === aba);
@@ -1017,8 +1053,12 @@ function gTab(aba) {
   if (aba === 'transplantios')  gLoadTr();
   if (aba === 'parceiros')      gLoadPa();
   if (aba === 'relatorios') {
-    if (Gerente._prdUltimo) gDashPRD(Gerente._prdUltimo.d, Gerente._prdUltimo.proj, Gerente._prdUltimo.dAnterior);
+    if (Gerente._prdUltimo) gDashPRD(Gerente._prdUltimo.d, Gerente._prdUltimo.proj, Gerente._prdUltimo.dAnterior, Gerente._prdUltimo.dListaParceiros);
     else gLoadPRD();
+  }
+  if (aba === 'produtividade') {
+    if (Gerente._prodUltimo) gDashProdutividade(Gerente._prodUltimo.d, Gerente._prodUltimo.dListaParceiros);
+    else gLoadProdutividade();
   }
 }
 
@@ -2841,6 +2881,172 @@ function _sincronizarBotaoRotulosPrd() {
   const btn = document.getElementById('prdBtnRotulos');
   if (!btn) return;
   const oculto = localStorage.getItem('spg_prd_rotulos_ocultos') === '1';
+  btn.textContent = oculto ? 'Mostrar Rótulos' : 'Ocultar Rótulos';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Aba Produtividade — entregas por dia/semana (PRD): unidades, kg e média
+// do tamanho da cabeça (g/unidade). Mesma fonte de dados do PRD Consolidado.
+// ════════════════════════════════════════════════════════════════════════
+
+function gLoadProdutividade() {
+  const ano      = (document.getElementById('prodFAno') || {}).value || '';
+  const mes      = (document.getElementById('prodFMes') || {}).value || '';
+  const parceiro = (document.getElementById('prodFPa')  || {}).value || '';
+  const classe   = (document.getElementById('prodFCl')  || {}).value || '';
+
+  const stats = document.getElementById('prodStats');
+  if (stats) stats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:#94a3b8;font-size:12px;">Carregando dados...</div>';
+
+  Promise.all([
+    gsPRD('getEntregasDashboard', App.token, { ano, mes, parceiro, classe }),
+    // mesmo motivo do gLoadPRD: com parceiro já selecionado, "d" vem restrito a ele, então busca
+    // à parte (sem parceiro) só pra montar a lista completa de parceiros daquela classe/período.
+    parceiro ? gsPRD('getEntregasDashboard', App.token, { ano, mes, parceiro: '', classe }).catch(() => null) : Promise.resolve(null)
+  ])
+    .then(([d, dListaParceiros]) => gDashProdutividade(d, dListaParceiros))
+    .catch(e => {
+      if (stats) stats.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:#dc2626;font-size:12px;">Erro: ${e.message}</div>`;
+    });
+}
+
+function gDashProdutividade(d, dListaParceiros) {
+  _prdMesclarSitioLeitao(d);
+  if (dListaParceiros) _prdMesclarSitioLeitao(dListaParceiros);
+  Gerente._prodUltimo = { d, dListaParceiros };
+
+  const listaParceirosClasse = ((dListaParceiros || d).porParceiro || []).map(p => p.parceiro).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  ['prodFAno','prodFMes','prodFPa','prodFCl'].forEach((id, i) => {
+    const el = document.getElementById(id); if (!el) return;
+    const curr = el.value;
+    const lista = id === 'prodFPa' ? listaParceirosClasse : ([d.anos, d.meses, d.parceiros, d.classes][i] || []);
+    el.innerHTML = `<option value="">${['Todos','Todos','Todos','Todas'][i]}</option>`;
+    lista.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = id === 'prodFMes' ? (MESES_PT[v - 1] || v) : v;
+      el.appendChild(o);
+    });
+    if (curr) el.value = curr;
+  });
+
+  // ── na primeira carga, filtra por padrão pela classe "Brócolis" ──
+  if (!Gerente._prodClasseInicializada) {
+    Gerente._prodClasseInicializada = true;
+    const selCl = document.getElementById('prodFCl');
+    if (selCl && !selCl.value) {
+      const match = (d.classes || []).find(c => _prdNormalizar(c).includes('brocolis'));
+      if (match) { selCl.value = match; gLoadProdutividade(); return; }
+    }
+  }
+
+  const r = d.resumo;
+  const stats = document.getElementById('prodStats');
+  if (stats) stats.innerHTML = `
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#dbeafe;">📦</div><div class="stat-value stat-azul">${fmtNum(r.total_unidades)}</div><div class="stat-label">Total Unidades</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#dcfce7;">🚚</div><div class="stat-value stat-verde">${fmtKg(r.total_kg)}</div><div class="stat-label">Total KG</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#fef3c7;">🥦</div><div class="stat-value stat-ambar">${r.media_g_un ? r.media_g_un + ' g' : '--'}</div><div class="stat-label">Média do Tamanho (g/unid.)</div></div>
+    <div class="stat-card"><div class="stat-icon-circle" style="background:#ede9fe;">👥</div><div class="stat-value" style="color:#6d28d9;">${r.total_parceiros}</div><div class="stat-label">Parceiros Ativos</div></div>
+  `;
+
+  _prodRenderCharts(d);
+}
+
+function _prodRenderCharts(d) {
+  const modo = Gerente._prodModo;
+  const _rotOcultoProd = localStorage.getItem('spg_prod_rotulos_ocultos') === '1';
+
+  const todasBuckets = (modo === 'dia' ? d.porDia : d.porSemana) || [];
+  const LIMITE = modo === 'dia' ? 90 : 52;
+  const bucket = todasBuckets.slice(-LIMITE);
+  const sufixo = bucket.length < todasBuckets.length
+    ? (modo === 'dia' ? `(últimos ${bucket.length} dias)` : `(últimas ${bucket.length} semanas)`)
+    : (modo === 'dia' ? `(${bucket.length} dias)` : `(${bucket.length} semanas)`);
+  ['prodUnidLabel', 'prodKgLabel', 'prodMediaLabel'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = sufixo; });
+
+  const labels   = bucket.map(b => modo === 'dia' ? fmtDate(b.data) : b.label);
+  const unidades = bucket.map(b => b.unidades);
+  const kg       = bucket.map(b => +b.peso_kg.toFixed(1));
+  const media    = bucket.map(b => b.unidades > 0 ? Math.round(b.peso_kg * 1000 / b.unidades) : null);
+
+  if (Gerente.cProdUnid) Gerente.cProdUnid.destroy();
+  const elU = document.getElementById('cProdUnid');
+  if (elU) Gerente.cProdUnid = new Chart(elU, {
+    type: 'bar',
+    data: { labels, datasets: [{ label:'Unidades', data: unidades, backgroundColor:'#2563eb', borderRadius:4, borderSkipped:false }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOcultoProd, anchor:'end', align:'top', color:'#475569', font:{ size:9, weight:'700' }, formatter:v => fmtNum(v) } },
+      layout:{ padding:{ top:18 } },
+      scales:{ x:{ ticks:{ font:{size:9}, color:'#94a3b8', maxRotation:0, autoSkip:true }, grid:{ display:false } }, y:{ ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  if (Gerente.cProdKg) Gerente.cProdKg.destroy();
+  const elK = document.getElementById('cProdKg');
+  if (elK) Gerente.cProdKg = new Chart(elK, {
+    type: 'bar',
+    data: { labels, datasets: [{ label:'KG', data: kg, backgroundColor:'#16a34a', borderRadius:4, borderSkipped:false }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOcultoProd, anchor:'end', align:'top', color:'#475569', font:{ size:9, weight:'700' }, formatter:v => fmtNum(v) } },
+      layout:{ padding:{ top:18 } },
+      scales:{ x:{ ticks:{ font:{size:9}, color:'#94a3b8', maxRotation:0, autoSkip:true }, grid:{ display:false } }, y:{ ticks:{ font:{size:10}, color:'#94a3b8' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  if (Gerente.cProdMedia) Gerente.cProdMedia.destroy();
+  const elM = document.getElementById('cProdMedia');
+  if (elM) Gerente.cProdMedia = new Chart(elM, {
+    type: 'line',
+    data: { labels, datasets: [{ label:'g/unidade', data: media, borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,.12)', borderWidth:2, fill:true, tension:.3, pointRadius:3, spanGaps:true }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+        datalabels:{ display:!_rotOcultoProd, align:'top', color:'#475569', font:{ size:9, weight:'700' }, formatter:v => v !== null ? v + ' g' : '' } },
+      layout:{ padding:{ top:18 } },
+      scales:{ x:{ ticks:{ font:{size:9}, color:'#94a3b8', maxRotation:0, autoSkip:true }, grid:{ display:false } }, y:{ ticks:{ font:{size:9}, color:'#94a3b8', callback:v=>v+' g' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  _sincronizarBotaoRotulosProd();
+  _sincronizarBotaoModoProd();
+}
+
+function gProdModo(modo) {
+  Gerente._prodModo = modo;
+  if (Gerente._prodUltimo) _prodRenderCharts(Gerente._prodUltimo.d);
+  else _sincronizarBotaoModoProd();
+}
+
+function _sincronizarBotaoModoProd() {
+  const btnDia = document.getElementById('prodBtnDia');
+  const btnSemana = document.getElementById('prodBtnSemana');
+  if (!btnDia || !btnSemana) return;
+  const ativoDia = Gerente._prodModo === 'dia';
+  btnDia.style.background = ativoDia ? '#0d5c3a' : '#f1f5f9';
+  btnDia.style.color = ativoDia ? '#fff' : '#334155';
+  btnSemana.style.background = !ativoDia ? '#0d5c3a' : '#f1f5f9';
+  btnSemana.style.color = !ativoDia ? '#fff' : '#334155';
+}
+
+function gProdLimparFiltro() {
+  document.getElementById('prodFAno').value = '';
+  document.getElementById('prodFMes').value = '';
+  document.getElementById('prodFPa').value = '';
+  document.getElementById('prodFCl').value = '';
+  gLoadProdutividade();
+}
+
+function gToggleRotulosProd() {
+  const oculto = localStorage.getItem('spg_prod_rotulos_ocultos') !== '1';
+  localStorage.setItem('spg_prod_rotulos_ocultos', oculto ? '1' : '0');
+  _sincronizarBotaoRotulosProd();
+  ['cProdUnid', 'cProdKg', 'cProdMedia'].forEach(id => {
+    const chart = Gerente[id];
+    if (!chart || !chart.options.plugins.datalabels) return;
+    chart.options.plugins.datalabels.display = !oculto;
+    chart.update();
+  });
+}
+
+function _sincronizarBotaoRotulosProd() {
+  const btn = document.getElementById('prodBtnRotulos');
+  if (!btn) return;
+  const oculto = localStorage.getItem('spg_prod_rotulos_ocultos') === '1';
   btn.textContent = oculto ? 'Mostrar Rótulos' : 'Ocultar Rótulos';
 }
 
