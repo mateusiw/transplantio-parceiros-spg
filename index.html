@@ -914,6 +914,14 @@ function renderGerente(root) {
         <div class="card"><div class="card-header"><h3>👥 Parceiros</h3><button class="btn btn-primary btn-sm" onclick="gOpenPa()">+ Novo</button></div><div id="gListPa" class="card-body" style="padding:8px 16px;"></div></div>
         <div class="card"><div class="card-header"><h3>🌱 Culturas</h3></div><div id="gListCu" class="card-body" style="padding:8px 16px;"></div></div>
         <div class="card"><div class="card-header"><h3>🧬 Variedades</h3><button class="btn btn-primary btn-sm" onclick="gNovaVariedade()">+ Nova</button></div><div id="gListVa" class="card-body" style="padding:8px 16px;"></div></div>
+        <div class="card"><div class="card-header"><h3>⚙ Configurações</h3></div><div class="card-body" style="padding:16px;">
+          <div class="form-group" style="margin-bottom:8px;">
+            <label class="form-label">Janela de Colheita (dias)</label>
+            <input type="number" id="cfgJanelaColheita" class="form-control" min="1" step="1" style="max-width:120px;">
+            <p class="text-muted" style="margin-top:6px;">Quantos dias, a partir da colheita prevista de um lote, ele continua "em colheita" disputando o rateio das entregas do PRD. Depois desse prazo, o lote para de competir mesmo que não tenha fechado 100% do previsto.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="gSalvarConfiguracoes()">Salvar</button>
+        </div></div>
       </div>
     </div>
 
@@ -1943,7 +1951,9 @@ function _renderTrHeatmap(lista) {
 }
 
 function gLoadAdmin() {
-  Promise.all([gs('listarUsuarios', App.token), gs('listarCulturas', App.token), gs('listarVariedades', App.token).catch(() => []), gs('listarParceirosAdmin', App.token).catch(() => [])]).then(([users, cults, variedades, parceiros]) => {
+  Promise.all([gs('listarUsuarios', App.token), gs('listarCulturas', App.token), gs('listarVariedades', App.token).catch(() => []), gs('listarParceirosAdmin', App.token).catch(() => []), gs('getConfiguracoes', App.token).catch(() => null)]).then(([users, cults, variedades, parceiros, config]) => {
+    const cfgEl = document.getElementById('cfgJanelaColheita');
+    if (cfgEl && config) cfgEl.value = config.janela_colheita_dias;
     const eu = document.getElementById('gListUs');
     if (eu) eu.innerHTML = users.map(u =>
       `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;">
@@ -1985,6 +1995,14 @@ function gLoadAdmin() {
         </div>`
       ).join('');
   });
+}
+
+function gSalvarConfiguracoes() {
+  const v = Number(document.getElementById('cfgJanelaColheita').value);
+  if (!(v > 0)) { toast('Informe um número de dias maior que zero.', 'error'); return; }
+  gs('atualizarConfiguracoes', App.token, { janela_colheita_dias: v })
+    .then(() => toast('Configurações salvas!', 'success'))
+    .catch(e => toast(e.message, 'error'));
 }
 
 function gNovaVariedade() {
