@@ -30,7 +30,8 @@
   <style>
     :root{--verde:#0d5c3a;--verde-med:#1a7a4e;--vermelho:#dc2626;}
     *{box-sizing:border-box;}
-    body{font-family:"Segoe UI",sans-serif;background:#f1f5f4;color:#1e293b;margin:0;}
+    html,body{overflow-x:hidden;max-width:100%;}
+    body{font-family:"Segoe UI",sans-serif;color:#1e293b;margin:0;background:#f1f5f4;}
     .navbar{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.06);}
     .navbar-brand{display:flex;align-items:center;gap:10px;}
     .navbar-brand img{width:32px;height:32px;border-radius:8px;}
@@ -47,9 +48,10 @@
     .btn-danger:hover{background:#b91c1c;}
     .btn-sm{padding:5px 10px;font-size:11px;border-radius:8px;}
     .btn-icon{padding:6px;border-radius:8px;background:transparent;border:none;cursor:pointer;color:#64748b;}
-    .card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;}
-    .card-header{padding:12px 20px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;}
-    .card-header h3{margin:0;font-size:13px;font-weight:700;color:#334155;}
+    .card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;max-width:100%;}
+    .card-header{padding:12px 20px;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px;}
+    .card-header h3{margin:0;font-size:13px;font-weight:700;color:#334155;flex:1 1 auto;min-width:0;overflow-wrap:break-word;word-break:break-word;}
+    .card-header > button, .card-header > a{flex-shrink:0;}
     .card-body{padding:20px;}
     .form-group{margin-bottom:14px;}
     .form-label{display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:5px;letter-spacing:.05em;}
@@ -111,12 +113,14 @@
     .hidden{display:none!important;} .text-center{text-align:center;} .text-muted{color:#94a3b8;font-size:11px;}
     .mb-3{margin-bottom:12px;} .mt-2{margin-top:8px;} .font-mono{font-family:monospace;}
     @media(max-width:640px){.cols-3,.cols-4{grid-template-columns:1fr 1fr;} .hide-mobile{display:none;}}
-    @media(max-width:480px){.cols-2,.cols-3,.cols-4{grid-template-columns:1fr;}}
+    @media(max-width:480px){.cols-2,.cols-3,.cols-4,.grid-auto{grid-template-columns:1fr;}}
     @media(max-width:520px){
       .navbar{padding:8px 10px;}
       .navbar-brand img{width:26px;height:26px;}
       .navbar-brand h1{font-size:12px;}
       .card-body{padding:14px;}
+      .card-header{padding:10px 14px;}
+      .card-header h3{font-size:12px;}
       .modal{padding:18px;width:94%;}
       .stat-value{font-size:18px;}
       table{font-size:11px;}
@@ -261,6 +265,30 @@ async function _gasCall(url, fn, args) {
 
 function gs(...args)    { return _gasCall(GAS_URL,     args[0], args.slice(1)); }
 function gsPRD(...args) { return _gasCall(GAS_PRD_URL, args[0], args.slice(1)); }
+
+// ── CACHE LOCAL (localStorage) ───────────────────────────────
+// Guarda o último resultado de cada "carregamento de tela" no navegador — na próxima abertura
+// do site, a tela já aparece com esses dados (sem esperar a rede) enquanto uma atualização real
+// roda por trás e substitui o conteúdo assim que chegar. Só acelera a PRIMEIRA renderização;
+// os dados nunca ficam "presos" no cache, porque toda vez que abre a aba ele já dispara o
+// carregamento de verdade também.
+const CACHE_PREFIX  = 'spg_cache_';
+const CACHE_TTL_MS  = 1000 * 60 * 60 * 12; // 12h — cache muito velho não vale a pena mostrar
+
+function _cacheSalvar(chave, dados) {
+  try { localStorage.setItem(CACHE_PREFIX + chave, JSON.stringify({ dados, ts: Date.now() })); }
+  catch (e) { /* localStorage cheio/indisponível — ignora, só perde o acelerador */ }
+}
+
+function _cacheLer(chave) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + chave);
+    if (!raw) return null;
+    const { dados, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL_MS) return null;
+    return dados;
+  } catch (e) { return null; }
+}
 
 function fmtDate(s) {
   if (!s) return '—';
@@ -1071,7 +1099,16 @@ function gTab(aba) {
 }
 
 function gLoad() {
-  showLoading(true);
+  const chaveCache = 'dashboard_' + JSON.stringify(Gerente.filtro);
+  const cache = _cacheLer(chaveCache);
+  if (cache) {
+    const [d, variedades, transplantios] = cache;
+    d.variedades = variedades; Gerente.dados = d; Gerente._dashTrTodos = transplantios;
+    Gerente._dashProxTodas = false;
+    gFiltros(d); gDash(d); _injectModais();
+  } else {
+    showLoading(true);
+  }
 
   // dispara o PRD (deploy separado) em paralelo com o dashboard principal, não encadeado
   // depois dele — assim os dois carregam ao mesmo tempo e a aba Relatórios já está pronta
@@ -1087,8 +1124,9 @@ function gLoad() {
       showLoading(false); d.variedades = variedades; Gerente.dados = d; Gerente._dashTrTodos = transplantios;
       Gerente._dashProxTodas = false;
       gFiltros(d); gDash(d); _injectModais();
+      _cacheSalvar(chaveCache, [d, variedades, transplantios]);
     })
-    .catch(e => { showLoading(false); toast('Erro: ' + e.message, 'error'); });
+    .catch(e => { showLoading(false); if (!cache) toast('Erro: ' + e.message, 'error'); });
 }
 
 function gFiltro() {
@@ -1308,9 +1346,13 @@ function gRenderPainel(lista) {
 
 // ── Painel de Parceiros: dashboard completo (KPIs, gráficos, heatmap) ────
 function gLoadPa() {
+  const cache = _cacheLer('parceiros_colheitas');
+  if (cache) { Gerente._paColheitasTodos = cache; _renderPaDashboard(); }
+
   gs('listarEntregasPRD', App.token).then(lista => {
     Gerente._paColheitasTodos = lista;
     _renderPaDashboard();
+    _cacheSalvar('parceiros_colheitas', lista);
   });
 }
 
@@ -1636,7 +1678,7 @@ const DIAS_SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Qu
 const CORES_VARIEDADE = ['#16a34a', '#d97706', '#2563eb', '#dc2626', '#7c3aed', '#0891b2'];
 
 function gLoadTr() {
-  gs('listarTransplantios', App.token).then(lista => {
+  const aplicar = lista => {
     Gerente._trTodos = lista;
     const selPa = document.getElementById('trFPa');
     if (selPa && selPa.options.length <= 1) {
@@ -1644,6 +1686,14 @@ function gLoadTr() {
       parceiros.forEach(p => { const o = document.createElement('option'); o.value = p.nome_fazenda; o.textContent = p.nome_fazenda; selPa.appendChild(o); });
     }
     gTrFiltrar();
+  };
+
+  const cache = _cacheLer('transplantios_todos');
+  if (cache) aplicar(cache);
+
+  gs('listarTransplantios', App.token).then(lista => {
+    aplicar(lista);
+    _cacheSalvar('transplantios_todos', lista);
   });
 }
 
@@ -2544,8 +2594,14 @@ function gLoadPRD() {
   const parceiro = (document.getElementById('prdFPa')  || {}).value || '';
   const classe   = (document.getElementById('prdFCl')  || {}).value || '';
 
+  const chaveCache = 'prd_' + JSON.stringify({ ano, mes, parceiro, classe });
+  const cache = _cacheLer(chaveCache);
   const stats = document.getElementById('prdStats');
-  if (stats) stats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:#94a3b8;font-size:12px;">Carregando dados PRD...</div>';
+  if (cache) {
+    gDashPRD(cache.d, cache.proj, cache.dAnterior, cache.dListaParceiros);
+  } else if (stats) {
+    stats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:#94a3b8;font-size:12px;">Carregando dados PRD...</div>';
+  }
 
   const anterior = _prdPeriodoAnterior(ano, mes);
   Gerente._prdParceirosTodos = false;
@@ -2559,9 +2615,12 @@ function gLoadPRD() {
     // à parte (sem parceiro) só pra montar a lista completa de parceiros daquela classe/período.
     parceiro ? gsPRD('getEntregasDashboard', App.token, { ano, mes, parceiro: '', classe }).catch(() => null) : Promise.resolve(null)
   ])
-    .then(([d, proj, dAnterior, dListaParceiros]) => gDashPRD(d, proj, dAnterior, dListaParceiros))
+    .then(([d, proj, dAnterior, dListaParceiros]) => {
+      gDashPRD(d, proj, dAnterior, dListaParceiros);
+      _cacheSalvar(chaveCache, { d, proj, dAnterior, dListaParceiros });
+    })
     .catch(e => {
-      if (stats) stats.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:#dc2626;font-size:12px;">Erro PRD: ${e.message}</div>`;
+      if (!cache && stats) stats.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:#dc2626;font-size:12px;">Erro PRD: ${e.message}</div>`;
     });
 }
 
@@ -2913,8 +2972,14 @@ function gLoadProdutividade() {
   const parceiro = (document.getElementById('prodFPa')  || {}).value || '';
   const classe   = (document.getElementById('prodFCl')  || {}).value || '';
 
+  const chaveCache = 'produtividade_' + JSON.stringify({ ano, mes, parceiro, classe });
+  const cache = _cacheLer(chaveCache);
   const stats = document.getElementById('prodStats');
-  if (stats) stats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:#94a3b8;font-size:12px;">Carregando dados...</div>';
+  if (cache) {
+    gDashProdutividade(cache.d, cache.dListaParceiros);
+  } else if (stats) {
+    stats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:#94a3b8;font-size:12px;">Carregando dados...</div>';
+  }
 
   Promise.all([
     gsPRD('getEntregasDashboard', App.token, { ano, mes, parceiro, classe }),
@@ -2922,9 +2987,12 @@ function gLoadProdutividade() {
     // à parte (sem parceiro) só pra montar a lista completa de parceiros daquela classe/período.
     parceiro ? gsPRD('getEntregasDashboard', App.token, { ano, mes, parceiro: '', classe }).catch(() => null) : Promise.resolve(null)
   ])
-    .then(([d, dListaParceiros]) => gDashProdutividade(d, dListaParceiros))
+    .then(([d, dListaParceiros]) => {
+      gDashProdutividade(d, dListaParceiros);
+      _cacheSalvar(chaveCache, { d, dListaParceiros });
+    })
     .catch(e => {
-      if (stats) stats.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:#dc2626;font-size:12px;">Erro: ${e.message}</div>`;
+      if (!cache && stats) stats.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:#dc2626;font-size:12px;">Erro: ${e.message}</div>`;
     });
 }
 
